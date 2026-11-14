@@ -1,24 +1,20 @@
-/* Aspect Studio Video — офлайн-кэш */
-var CACHE = 'aspect-video-v1.0.0';
-var FILES = [
-  './', 'index.html', 'css/style.css', 'js/render.js', 'js/export.js', 'js/app.js',
-  'vendor/mp4-muxer.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'
-];
-self.addEventListener('install', function (e) {
-  e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(FILES); }).then(function () { return self.skipWaiting(); }));
+/* Aspect Studio Video — service worker (офлайн-режим) */
+const VERSION = 'aspect-video-v2.0.0';
+const CORE = ['./', './index.html', './manifest.webmanifest', './css/base.css', './css/style.css',
+  './js/core.js', './js/render.js', './js/faces.js', './js/export.js', './js/app.js', './js/about.js', './js/changelog-data.js',
+  './vendor/mp4-muxer.js', './fonts/roboto-flex-cyrillic.woff2', './fonts/roboto-flex-latin.woff2', './icons/icon-192.png', './icons/icon-512.png'];
+/* Модель лиц тяжёлая: докладываем в кэш при первом использовании, а не при установке */
+self.addEventListener('install', e => {
+  e.waitUntil(caches.open(VERSION).then(c => Promise.all(CORE.map(u => c.add(new Request(u, { cache: 'reload' })).catch(() => {})))).then(() => self.skipWaiting()));
 });
-self.addEventListener('activate', function (e) {
-  e.waitUntil(
-    caches.keys().then(function (keys) {
-      return Promise.all(keys.filter(function (k) { return k !== CACHE; }).map(function (k) { return caches.delete(k); }));
-    }).then(function () { return self.clients.claim(); })
-  );
+self.addEventListener('activate', e => {
+  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== VERSION).map(k => caches.delete(k)))).then(() => self.clients.claim()));
 });
-self.addEventListener('fetch', function (e) {
-  if (e.request.method !== 'GET') return;
-  e.respondWith(
-    caches.match(e.request).then(function (hit) {
-      return hit || fetch(e.request);
-    })
-  );
+self.addEventListener('fetch', e => {
+  const req = e.request;
+  if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
+  e.respondWith(caches.match(req, { ignoreSearch: true }).then(hit => hit || fetch(req).then(resp => {
+    if (resp && resp.ok && /\/(vendor|js|css|fonts|icons)\//.test(req.url)) { const copy = resp.clone(); caches.open(VERSION).then(c => c.put(req, copy)); }
+    return resp;
+  })));
 });

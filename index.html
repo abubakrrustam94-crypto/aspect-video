@@ -1,128 +1,405 @@
 <!doctype html>
-<html lang="ru">
+<html lang="ru" data-theme="dark">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#14110f">
-<meta name="description" content="Меняет соотношение сторон видео без обрезки. Всё работает в браузере, файлы никуда не загружаются.">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f0f14">
+<meta name="description" content="Меняет формат видео без обрезки: Reels, Shorts, пост 4:5, YouTube. Всё работает в браузере, видео никуда не загружается.">
 <title>Aspect Studio Video</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/base.css">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-<header class="top">
-  <h1>Aspect Studio <span>Video</span></h1>
-  <p class="sub">Меняет формат видео без обрезки. Всё на вашем устройстве.</p>
-</header>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-frame" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="3"/><path d="M9 8h6M9 16h6"/></symbol>
+    <symbol id="i-video" viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="3"/><path d="m16 10 5-3v10l-5-3"/></symbol>
+    <symbol id="i-droplet" viewBox="0 0 24 24"><path d="M12 3s6 6.2 6 10.5A6 6 0 0 1 6 13.5C6 9.2 12 3 12 3z"/></symbol>
+    <symbol id="i-save" viewBox="0 0 24 24"><path d="M12 4v11m0 0-4-4m4 4 4-4M5 19h14"/></symbol>
+    <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.4a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1.1.9-1.1 1.8M12 17h.01"/></symbol>
+    <symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/></symbol>
+    <symbol id="i-activity" viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="3"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" fill="currentColor"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14" stroke-width="3.2"/></symbol>
+    <symbol id="i-rotl" viewBox="0 0 24 24"><path d="M4 4v6h6"/><path d="M5.5 15a8 8 0 1 0 1-7.5L4 10"/></symbol>
+    <symbol id="i-rotr" viewBox="0 0 24 24"><path d="M20 4v6h-6"/><path d="M18.5 15a8 8 0 1 1-1-7.5L20 10"/></symbol>
+    <symbol id="i-flip" viewBox="0 0 24 24"><path d="M12 3v18M8 7 3 12l5 5V7zM16 7l5 5-5 5V7z"/></symbol>
+    <symbol id="i-flipv" viewBox="0 0 24 24"><path d="M3 12h18M7 8l5-5 5 5H7zM7 16l5 5 5-5H7z"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4 6.5 6.5 0 0 0 20 14.5z"/></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 9"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-share" viewBox="0 0 24 24"><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="m8.2 10.8 7.6-3.6M8.2 13.2l7.6 3.6"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 5 6v6c0 4.4 3 7.6 7 9 4-1.4 7-4.6 7-9V6z"/></symbol>
+  </defs>
+</svg>
 
-<main>
-  <section id="drop" class="drop" tabindex="0" role="button" aria-label="Выбрать видео">
-    <div class="drop-icon" aria-hidden="true">🎬</div>
+<div class="app">
+  <header class="top-bar">
+    <div class="brand">
+      <div class="brand-icon" aria-hidden="true">🎬</div>
+      <div class="brand-text">
+        <h1>Aspect Studio Video</h1>
+        <p>Формат видео без обрезки · всё на устройстве</p>
+      </div>
+    </div>
+    <div class="top-actions">
+      <button type="button" class="icon-btn" id="themeBtn" aria-label="Переключить тему"><svg class="ic" aria-hidden="true"><use href="#i-sun"/></svg></button>
+    </div>
+  </header>
+
+  <section class="upload-zone" id="uploadZone" tabindex="0" role="button" aria-label="Выбрать видео">
+    <div class="upload-ic" aria-hidden="true">🎞️</div>
     <strong>Выберите видео</strong>
-    <span>или перетащите файл сюда</span>
-    <input id="file" type="file" accept="video/*" hidden>
+    <span>или перетащите файлы сюда · можно несколько</span>
+    <input id="fileInput" type="file" accept="video/*,.mp4,.mov,.m4v,.mkv,.webm,.avi,.3gp,.ts,.mts" multiple hidden>
+    <div class="examples" id="exRow">
+      <button type="button" class="btn btn-outlined btn-sm" id="howLink">Видео не уходит на сервер. Как это работает?</button>
+    </div>
   </section>
 
-  <div id="editor" class="editor" hidden>
-    <section class="stage">
-      <canvas id="preview" aria-label="Предпросмотр"></canvas>
-      <video id="video" playsinline preload="auto" hidden></video>
-      <div class="transport">
-        <button id="play" class="btn icon" aria-label="Играть">▶</button>
-        <input id="seek" type="range" min="0" max="1" step="0.01" value="0" aria-label="Позиция">
-        <span id="time" class="mono">0:00.0</span>
-      </div>
-      <p id="info" class="info"></p>
-    </section>
+  <div class="layout" id="editor" hidden>
+    <!-- ============ Превью ============ -->
+    <div class="col-main">
+      <section class="card preview-card">
+        <div class="preview-head">
+          <div class="nav-group" aria-label="Видео в очереди">
+            <button type="button" id="prevItem" aria-label="Предыдущее видео">‹</button>
+            <span id="qPos">1 из 1</span>
+            <button type="button" id="nextItem" aria-label="Следующее видео">›</button>
+          </div>
+          <span class="count-pill" id="info"></span>
+        </div>
+        <div class="stage"><canvas id="preview" aria-label="Предпросмотр результата"></canvas></div>
+        <video id="video" class="vhide" playsinline preload="auto"></video>
+        <div class="transport">
+          <button type="button" class="icon-btn play" id="play" aria-label="Играть"><svg class="ic" aria-hidden="true"><use href="#i-play"/></svg></button>
+          <div class="seek-wrap">
+            <canvas id="strip" aria-hidden="true"></canvas>
+            <input type="range" id="seek" min="0" max="1" step="0.01" value="0" aria-label="Позиция в видео">
+          </div>
+          <output id="timeLbl" class="mono">0:00.0</output>
+        </div>
+      </section>
 
-    <section class="panel">
-      <h2>Формат</h2>
-      <div id="presets" class="chips"></div>
-      <div class="custom">
-        <label>Свой:
-          <input id="cw" type="number" min="1" max="100" value="9" inputmode="numeric"> :
-          <input id="ch" type="number" min="1" max="100" value="16" inputmode="numeric">
-        </label>
-      </div>
+      <section class="card" id="queueCard">
+        <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-video"/></svg> Очередь <span class="count-pill" id="qCount"></span></div>
+        <div class="queue" id="queue" role="list"></div>
+        <div class="row" style="margin-top:12px">
+          <button type="button" class="btn btn-outlined btn-sm" id="addMore"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg> Добавить видео</button>
+        </div>
+        <p class="note" id="qNote">Настройки общие для всех видео, а фрагмент (начало и конец) у каждого свой.</p>
+      </section>
 
-      <h2>Заполнение пустых полей</h2>
-      <div id="modes" class="seg" role="radiogroup">
-        <button data-mode="blur" class="on" role="radio" aria-checked="true">Размытие</button>
-        <button data-mode="color" role="radio" aria-checked="false">Цвет</button>
-        <button data-mode="crop" role="radio" aria-checked="false">Обрезать</button>
-      </div>
-      <label id="colorRow" class="row" hidden>Цвет фона
-        <input id="color" type="color" value="#000000">
-      </label>
+      <section class="card" id="resultCard" hidden>
+        <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-save"/></svg> Готовые видео <button type="button" class="btn btn-outlined btn-sm" id="clearResults" style="margin-left:auto">Очистить список</button></div>
+        <div class="results" id="resultList"></div>
+        <video id="resultVideo" controls playsinline hidden></video>
+        <p class="note" id="resultNote" hidden></p>
+      </section>
+    </div>
 
-      <h2>Фрагмент</h2>
-      <div class="trim">
-        <label>Начало <span id="startLbl" class="mono">0:00.0</span>
-          <input id="start" type="range" min="0" max="1" step="0.1" value="0">
-        </label>
-        <label>Конец <span id="endLbl" class="mono">0:00.0</span>
-          <input id="end" type="range" min="0" max="1" step="0.1" value="1">
-        </label>
-      </div>
+    <!-- ============ Настройки ============ -->
+    <div class="col-settings" id="colSettings">
+      <nav class="tabs" id="settingsTabs" role="tablist" aria-label="Разделы настроек">
+        <button type="button" role="tab" data-tab="frame"><i aria-hidden="true"><svg class="ic"><use href="#i-frame"/></svg></i><span>Кадр</span></button>
+        <button type="button" role="tab" data-tab="video"><i aria-hidden="true"><svg class="ic"><use href="#i-video"/></svg></i><span>Видео</span></button>
+        <button type="button" role="tab" data-tab="wm"><i aria-hidden="true"><svg class="ic"><use href="#i-droplet"/></svg></i><span>Знак</span></button>
+        <button type="button" role="tab" data-tab="export"><i aria-hidden="true"><svg class="ic"><use href="#i-save"/></svg></i><span>Экспорт</span></button>
+        <button type="button" role="tab" data-tab="about"><i aria-hidden="true"><svg class="ic"><use href="#i-help"/></svg></i><span>О программе</span></button>
+      </nav>
 
-      <h2>Качество</h2>
-      <div class="grid2">
-        <label>Размер
-          <select id="short">
-            <option value="0">Авто (как у исходника)</option>
-            <option value="480">480p</option>
-            <option value="720">720p</option>
-            <option value="1080" selected>1080p</option>
-            <option value="1440">1440p</option>
-            <option value="2160">2160p (4K)</option>
-          </select>
-        </label>
-        <label>Кадров/с
-          <select id="fps">
-            <option value="24">24</option>
-            <option value="30" selected>30</option>
-            <option value="60">60</option>
-          </select>
-        </label>
-        <label>Битрейт
-          <select id="quality">
-            <option value="0.07">Компактный</option>
-            <option value="0.12" selected>Хороший</option>
-            <option value="0.2">Максимальный</option>
-          </select>
-        </label>
-        <label class="check"><input id="mute" type="checkbox"> Без звука</label>
-      </div>
+      <!-- ===== Кадр ===== -->
+      <section class="card" data-tab="frame">
+        <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-sparkles"/></svg> Сценарий</div>
+        <div class="chips" id="scenarios" role="group" aria-label="Готовые сценарии"></div>
+        <p class="note">Одним нажатием ставит формат, размер, частоту кадров и качество.</p>
+      </section>
+      <section class="card" data-tab="frame">
+        <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-frame"/></svg> Формат кадра</div>
+        <div class="chips" id="presets" role="group" aria-label="Соотношение сторон"></div>
+        <div class="custom-ratio">
+          <span class="field-label" style="margin:0">Свой</span>
+          <input class="num" id="cw" type="number" min="1" max="100" inputmode="numeric" aria-label="Ширина пропорции"> <span aria-hidden="true">:</span>
+          <input class="num" id="ch" type="number" min="1" max="100" inputmode="numeric" aria-label="Высота пропорции">
+        </div>
+      </section>
+      <section class="card" data-tab="frame">
+        <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-droplet"/></svg> Заполнение полей</div>
+        <div class="seg" data-group="mode" role="group" aria-label="Чем заполнить поля">
+          <button type="button" data-val="blur">Размытие</button>
+          <button type="button" data-val="mirror">Зеркало</button>
+          <button type="button" data-val="color">Цвет</button>
+          <button type="button" data-val="crop">Обрезать</button>
+        </div>
+        <div class="row" id="colorRow" style="margin-top:14px" hidden>
+          <span class="field-label" style="margin:0">Цвет поля</span>
+          <input type="color" data-key="color" aria-label="Цвет поля">
+        </div>
+        <div class="panel" id="faceRow" hidden>
+          <label class="switch"><input type="checkbox" data-key="faceTrack"><span class="track"></span><span>Следить за лицом</span></label>
+          <div class="row" style="margin-top:10px">
+            <button type="button" class="btn btn-tonal btn-sm" id="faceRun"><svg class="ic" aria-hidden="true"><use href="#i-user"/></svg> Найти лицо</button>
+            <span class="note" id="faceStatus" style="margin:0"></span>
+          </div>
+          <p class="note">Кадр «Обрезать» смещается за самым крупным лицом, а не режет по центру. Поиск идёт на устройстве, при первом запуске подгружается модель (~1,6 МБ).</p>
+        </div>
+        <p class="note" id="modeNote"></p>
+      </section>
 
-      <button id="export" class="btn primary">Сохранить видео</button>
-      <div id="progress" class="progress" hidden>
-        <div class="bar"><i id="bar"></i></div>
-        <p id="ptext">…</p>
-        <button id="cancel" class="btn">Отмена</button>
-      </div>
-      <p id="note" class="note" hidden></p>
-      <button id="other" class="btn link">Выбрать другое видео</button>
-    </section>
+      <!-- ===== Видео ===== -->
+      <section class="card" data-tab="video">
+        <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-video"/></svg> Фрагмент</div>
+        <div class="stack">
+          <div>
+            <span class="field-label">Начало <output id="startLbl" class="mono">0:00.0</output></span>
+            <input type="range" id="start" min="0" max="1" step="0.1" value="0" aria-label="Начало фрагмента">
+          </div>
+          <div>
+            <span class="field-label">Конец <output id="endLbl" class="mono">0:00.0</output></span>
+            <input type="range" id="end" min="0" max="1" step="0.1" value="1" aria-label="Конец фрагмента">
+          </div>
+          <div class="row" style="margin:0">
+            <button type="button" class="btn btn-tonal btn-sm" id="setStart">Начало = сейчас</button>
+            <button type="button" class="btn btn-tonal btn-sm" id="setEnd">Конец = сейчас</button>
+          </div>
+        </div>
+      </section>
+      <section class="card" data-tab="video">
+        <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-rotr"/></svg> Поворот и скорость</div>
+        <div class="row">
+          <button type="button" class="btn btn-outlined btn-sm" id="rotL"><svg class="ic" aria-hidden="true"><use href="#i-rotl"/></svg> Влево</button>
+          <button type="button" class="btn btn-outlined btn-sm" id="rotR"><svg class="ic" aria-hidden="true"><use href="#i-rotr"/></svg> Вправо</button>
+          <button type="button" class="btn btn-outlined btn-sm" id="flipH" aria-pressed="false"><svg class="ic" aria-hidden="true"><use href="#i-flip"/></svg> Отразить</button>
+          <button type="button" class="btn btn-outlined btn-sm" id="flipV" aria-pressed="false"><svg class="ic" aria-hidden="true"><use href="#i-flipv"/></svg> Вверх ногами</button>
+        </div>
+        <div class="stack" style="margin-top:16px">
+          <div>
+            <span class="field-label">Скорость</span>
+            <div class="seg" data-group="speed" data-num role="group" aria-label="Скорость">
+              <button type="button" data-val="0.5">0,5×</button>
+              <button type="button" data-val="0.75">0,75×</button>
+              <button type="button" data-val="1">1×</button>
+              <button type="button" data-val="1.5">1,5×</button>
+              <button type="button" data-val="2">2×</button>
+            </div>
+            <p class="note">Звук ускоряется и замедляется вместе с видео, высота тона при этом меняется.</p>
+          </div>
+          <div>
+            <span class="field-label">Появление из чёрного</span>
+            <div class="range-row"><input type="range" data-key="fadeIn" min="0" max="3" step="0.1" aria-label="Появление из чёрного"><output data-out="fadeIn" data-unit=" с"></output></div>
+          </div>
+          <div>
+            <span class="field-label">Уход в чёрное</span>
+            <div class="range-row"><input type="range" data-key="fadeOut" min="0" max="3" step="0.1" aria-label="Уход в чёрное"><output data-out="fadeOut" data-unit=" с"></output></div>
+          </div>
+        </div>
+      </section>
+      <section class="card" data-tab="video">
+        <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-activity"/></svg> Звук</div>
+        <div class="stack">
+          <label class="switch"><input type="checkbox" data-key="mute"><span class="track"></span><span>Без звука</span></label>
+          <div>
+            <span class="field-label">Громкость</span>
+            <div class="range-row"><input type="range" data-key="vol" min="0" max="200" step="5" aria-label="Громкость"><output data-out="vol" data-unit="%"></output></div>
+          </div>
+          <label class="switch"><input type="checkbox" data-key="norm"><span class="track"></span><span>Выровнять громкость</span></label>
+        </div>
+        <p class="note">«Выровнять» поднимает самый громкий момент почти до максимума без искажений. Громкость и затухание работают в быстром режиме сохранения.</p>
+      </section>
+      <section class="card" data-tab="video">
+        <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-image"/></svg> Кадр как картинка</div>
+        <div class="row">
+          <button type="button" class="btn btn-tonal btn-sm" id="snapPng">Сохранить PNG</button>
+          <button type="button" class="btn btn-tonal btn-sm" id="snapJpg">Сохранить JPG</button>
+        </div>
+        <p class="note">Берёт текущий кадр с превью в полном размере результата: годится как обложка.</p>
+      </section>
 
-    <section id="result" class="panel result" hidden>
-      <h2>Готово</h2>
-      <video id="resultVideo" controls playsinline></video>
-      <p id="resultInfo" class="info"></p>
-      <div class="actions">
-        <a id="download" class="btn primary" download>Скачать</a>
-        <button id="share" class="btn" hidden>Поделиться</button>
-      </div>
-    </section>
+      <!-- ===== Водяной знак ===== -->
+      <section class="card" data-tab="wm">
+        <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-droplet"/></svg> Водяной знак</div>
+        <div class="stack">
+          <label class="switch"><input type="checkbox" data-key="wmOn"><span class="track"></span><span>Показывать знак</span></label>
+          <div>
+            <span class="field-label">Что показывать</span>
+            <div class="seg" data-group="wmType" role="group" aria-label="Тип знака">
+              <button type="button" data-val="text">Текст</button>
+              <button type="button" data-val="image">Картинка</button>
+            </div>
+          </div>
+          <div id="wmTextRow">
+            <span class="field-label">Текст</span>
+            <input class="text-input" type="text" data-key="wmText" maxlength="60" placeholder="@mychannel" aria-label="Текст знака" autocomplete="off">
+          </div>
+          <div id="wmImgRow" hidden>
+            <span class="field-label">Логотип</span>
+            <div class="row" style="margin:0">
+              <button type="button" class="btn btn-tonal btn-sm" id="wmPick"><svg class="ic" aria-hidden="true"><use href="#i-image"/></svg> Выбрать картинку</button>
+              <span class="note" id="wmImgName" style="margin:0">Не выбрана</span>
+            </div>
+            <input type="file" id="wmFile" accept="image/*" hidden>
+          </div>
+          <div class="row" id="wmColorRow" style="margin:0">
+            <span class="field-label" style="margin:0">Цвет текста</span>
+            <input type="color" data-key="wmColor" aria-label="Цвет текста знака">
+            <label class="switch" style="margin-left:auto"><input type="checkbox" data-key="wmShadow"><span class="track"></span><span>Тень</span></label>
+          </div>
+          <div>
+            <span class="field-label">Где</span>
+            <div class="row" style="margin:0;align-items:flex-start">
+              <div class="pos-grid" id="wmPosGrid" data-group="wmPos" role="group" aria-label="Положение знака">
+                <button type="button" data-val="tl" aria-label="Слева сверху"></button><button type="button" data-val="t" aria-label="Сверху"></button><button type="button" data-val="tr" aria-label="Справа сверху"></button>
+                <button type="button" data-val="l" aria-label="Слева"></button><button type="button" data-val="c" aria-label="По центру"></button><button type="button" data-val="r" aria-label="Справа"></button>
+                <button type="button" data-val="bl" aria-label="Слева снизу"></button><button type="button" data-val="b" aria-label="Снизу"></button><button type="button" data-val="br" aria-label="Справа снизу"></button>
+              </div>
+              <div class="chips" data-group="wmPos" id="wmTileChip"><button type="button" class="chip" data-val="tile">Мозаика</button></div>
+            </div>
+          </div>
+          <div><span class="field-label">Размер</span><div class="range-row"><input type="range" data-key="wmSize" min="2" max="20" step="0.5" aria-label="Размер знака"><output data-out="wmSize" data-unit="%"></output></div></div>
+          <div><span class="field-label">Непрозрачность</span><div class="range-row"><input type="range" data-key="wmOpacity" min="10" max="100" step="5" aria-label="Непрозрачность знака"><output data-out="wmOpacity" data-unit="%"></output></div></div>
+          <div><span class="field-label">Отступ от края</span><div class="range-row"><input type="range" data-key="wmMargin" min="0" max="15" step="0.5" aria-label="Отступ знака"><output data-out="wmMargin" data-unit="%"></output></div></div>
+          <div id="wmAngleRow"><span class="field-label">Наклон мозаики</span><div class="range-row"><input type="range" data-key="wmAngle" min="-60" max="60" step="5" aria-label="Наклон мозаики"><output data-out="wmAngle" data-unit="°"></output></div></div>
+          <div>
+            <span class="field-label">Когда показывать</span>
+            <div class="seg" data-group="wmWhen" role="group" aria-label="Когда показывать знак">
+              <button type="button" data-val="all">Всё видео</button>
+              <button type="button" data-val="first">Только начало</button>
+            </div>
+            <div class="range-row" id="wmSecRow" style="margin-top:10px"><input type="range" data-key="wmSec" min="1" max="30" step="1" aria-label="Сколько секунд показывать знак"><output data-out="wmSec" data-unit=" с"></output></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== Экспорт ===== -->
+      <section class="card" data-tab="export">
+        <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-sparkles"/></svg> Качество</div>
+        <div class="stack">
+          <div>
+            <span class="field-label">Размер (короткая сторона)</span>
+            <div class="seg" data-group="short" data-num role="group" aria-label="Размер">
+              <button type="button" data-val="0">Авто</button>
+              <button type="button" data-val="480">480</button>
+              <button type="button" data-val="720">720</button>
+              <button type="button" data-val="1080">1080</button>
+              <button type="button" data-val="1440">1440</button>
+              <button type="button" data-val="2160">4K</button>
+            </div>
+          </div>
+          <div>
+            <span class="field-label">Кадров в секунду</span>
+            <div class="seg" data-group="fps" data-num role="group" aria-label="Частота кадров">
+              <button type="button" data-val="24">24</button>
+              <button type="button" data-val="30">30</button>
+              <button type="button" data-val="60">60</button>
+            </div>
+          </div>
+          <div>
+            <span class="field-label">Битрейт</span>
+            <div class="seg" data-group="quality" data-num role="group" aria-label="Битрейт">
+              <button type="button" data-val="0.07">Компактный</button>
+              <button type="button" data-val="0.12">Хороший</button>
+              <button type="button" data-val="0.2">Максимум</button>
+            </div>
+          </div>
+        </div>
+        <p class="note" id="estNote"></p>
+        <p class="note warn" id="memWarn" hidden></p>
+      </section>
+      <section class="card" data-tab="export">
+        <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-copy"/></svg> Имя файла</div>
+        <div class="stack">
+          <div>
+            <span class="field-label">Шаблон</span>
+            <input class="text-input" type="text" data-key="nameTpl" maxlength="80" aria-label="Шаблон имени файла" autocomplete="off" spellcheck="false">
+            <p class="note">Можно использовать: <code>{name}</code> имя, <code>{ratio}</code> формат, <code>{size}</code> размер, <code>{n}</code> номер, <code>{date}</code> дата.</p>
+          </div>
+          <label class="switch"><input type="checkbox" data-key="translit"><span class="track"></span><span>Кириллицу в латиницу</span></label>
+          <label class="switch"><input type="checkbox" data-key="counter"><span class="track"></span><span>Добавлять номер по порядку</span></label>
+          <p class="note" id="namePrev" style="margin:0"></p>
+        </div>
+      </section>
+      <section class="card" data-tab="export" id="folderCard" hidden>
+        <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-save"/></svg> Куда сохранять</div>
+        <label class="switch"><input type="checkbox" data-key="toFolder"><span class="track"></span><span>Сохранять в выбранную папку</span></label>
+        <p class="note">Браузер спросит папку один раз на всю очередь. Файлы сразу окажутся там, без скачивания.</p>
+      </section>
+      <section class="card" data-tab="export">
+        <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-shield"/></svg> Метаданные</div>
+        <p class="note" style="margin-top:0">Результат собирается заново, а не копируется. GPS-координаты, модель телефона, дата и программа съёмки исходного видео в него не попадают. Цвет записывается как стандартный sRGB (BT.709): HDR-видео с iPhone будет с обычным, не расширенным диапазоном.</p>
+      </section>
+
+      <!-- ===== О программе ===== -->
+      <section class="card" id="cardAbout" data-tab="about">
+        <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-help"/></svg> О программе</div>
+        <p class="about-line"><strong>Aspect Studio Video</strong> <span id="appVersion" class="ver"></span></p>
+        <p class="note" style="margin-top:4px">Всё работает на твоём устройстве: видео никуда не отправляются. Настройки хранятся только в этом браузере.</p>
+        <div class="off-chip" id="offChip" role="status"></div>
+        <p class="note" id="cntLine" hidden></p>
+        <div class="row" style="margin-top:12px">
+          <a class="btn btn-outlined btn-sm" id="repoLink" href="https://github.com/abubakrrustam94-crypto/aspect-video" target="_blank" rel="noopener noreferrer">Исходный код на GitHub</a>
+          <button type="button" class="btn btn-outlined btn-sm" id="howBtn">Как это работает</button>
+          <button type="button" class="btn btn-outlined btn-sm" id="wnOpenBtn"><svg class="ic" aria-hidden="true"><use href="#i-sparkles"/></svg> Что нового</button>
+          <button type="button" class="btn btn-outlined btn-sm" id="speedBtn"><svg class="ic" aria-hidden="true"><use href="#i-activity"/></svg> Проверить скорость</button>
+          <button type="button" class="btn btn-outlined btn-sm" id="reportBtn">Сообщить о проблеме</button>
+          <button type="button" class="btn btn-outlined btn-sm danger" id="resetAll">Сбросить все настройки</button>
+        </div>
+        <div class="speed-out" id="speedOut" role="status" aria-live="polite" hidden></div>
+        <details class="errlog" id="errLogBox">
+          <summary>Журнал ошибок (<span id="errLogCount">0</span>)</summary>
+          <p class="note" style="margin-top:8px">Хранится только на этом устройстве и никуда не отправляется. Если что-то сломалось, скопируй и пришли разработчику.</p>
+          <pre id="errLogText" tabindex="0"></pre>
+          <div class="row"><button type="button" class="btn btn-outlined btn-sm" id="errLogCopy"><svg class="ic" aria-hidden="true"><use href="#i-copy"/></svg> Копировать</button><button type="button" class="btn btn-outlined btn-sm" id="errLogShare">Отправить отчёт</button><button type="button" class="btn btn-outlined btn-sm" id="errLogClear">Очистить</button></div>
+        </details>
+        <p class="note" id="resetNote" hidden>Будут удалены настройки, счётчик и тема. Нажми ещё раз, чтобы подтвердить.</p>
+      </section>
+    </div>
   </div>
-</main>
 
-<footer>Файлы не покидают устройство · v1.0.0</footer>
+  <footer class="foot">Файлы не покидают устройство</footer>
+</div>
+
+<!-- Панель сохранения -->
+<div class="toolbar" id="toolbar" hidden>
+  <button type="button" class="tb-btn" id="saveAllBtn" hidden><svg class="ic" aria-hidden="true"><use href="#i-save"/></svg> <span>Сохранить все</span></button>
+  <button type="button" class="tb-btn primary" id="saveBtn"><svg class="ic" aria-hidden="true"><use href="#i-save"/></svg> <span>Сохранить видео</span></button>
+</div>
+
+<div class="progress-sheet" id="progress" role="status" aria-live="polite" hidden>
+  <div class="ps-head"><strong id="pTitle">Обработка</strong><span id="pPct" class="mono">0%</span></div>
+  <div class="bar"><i id="pBar"></i></div>
+  <p id="pText" class="note">…</p>
+  <button type="button" class="btn btn-outlined btn-sm" id="pCancel">Отмена</button>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<div class="modal onb" id="whatsnew" role="dialog" aria-modal="true" aria-labelledby="wnTitle" hidden>
+  <div class="onb-card wn-card">
+    <h2 id="wnTitle">Что нового</h2>
+    <div class="wn-list" id="wnList" tabindex="0"></div>
+    <div class="onb-actions"><button type="button" class="btn btn-main" id="wnClose">Понятно</button></div>
+  </div>
+</div>
+<div class="modal onb" id="howDlg" role="dialog" aria-modal="true" aria-labelledby="howTitle" hidden>
+  <div class="onb-card wn-card">
+    <h2 id="howTitle">Как это работает</h2>
+    <div class="wn-list how-list" id="howList" tabindex="0"></div>
+    <div class="onb-actions"><button type="button" class="btn btn-main" id="howClose">Понятно</button></div>
+  </div>
+</div>
 
 <script src="vendor/mp4-muxer.js"></script>
+<script src="js/core.js"></script>
 <script src="js/render.js"></script>
+<script src="js/faces.js"></script>
 <script src="js/export.js"></script>
 <script src="js/app.js"></script>
+<script src="js/about.js"></script>
 </body>
 </html>
