@@ -1,0 +1,131 @@
+'use strict';
+/* Aspect Studio Video — анализ: стабилизация, тишина, разбор файлов субтитров. Всё считается на устройстве. */
+(function () {
+  var AV = (window.AV = window.AV || {});
+  function abortErr() { var e = new Error('Отменено'); e.aborted = true; return e; }
+
+  /* ---------- Стабилизация ----------
+     Берём кадры с частотой 15 в секунду, уменьшаем до 160 пикселей по ширине и для каждой пары соседних кадров ищем сдвиг
+     с наименьшей разницей. Складываем сдвиги в путь камеры, сглаживаем его скользящим средним, а разницу между сглаженным
+     и реальным путём компенсируем сдвигом кадра. Края прячутся небольшим увеличением. Это лёгкая стабилизация
+     от мелкой дрожи рук, а не замена штатива и не вырезание резких поворотов. */
+  var LEVELS = { 1: { win: 0.5, max: 0.03, zoom: 1.07 }, 2: { win: 1.0, max: 0.06, zoom: 1.14 } };
+  var SW = 160, SEARCH = 8;
+
+  function gray(src, sw, sh, cv, g) {
+    var w = SW, h = Math.max(24, Math.round((SW * sh) / sw));
+    if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+    g.drawImage(src, 0, 0, w, h);
+    var px = g.getImageData(0, 0, w, h).data, out = new Uint8Array(w * h);
+    for (var i = 0, j = 0; j < out.length; i += 4, j++) out[j] = (px[i] * 77 + px[i + 1] * 150 + px[i + 2] * 29) >> 8;
+    return { d: out, w: w, h: h };
+  }
+  /* на сколько пикселей сместилось содержимое кадра cur относительно prev */
+  function shiftBetween(prev, cur) {
+    var w = prev.w, h = prev.h, m = SEARCH + 2, best = 1e18, bu = 0, bv = 0;
+    for (var v = -SEARCH; v <= SEARCH; v++) {
+      for (var u = -SEARCH; u <= SEARCH; u++) {
+        var sad = 0;
+        for (var y = m; y < h - m; y += 2) {
+          var ro = y * w, po = (y - v) * w - u;
+          for (var x = m; x < w - m; x += 2) { var d = cur.d[ro + x] - prev.d[po + x]; sad += d < 0 ? -d : d; }
+        }
+        /* небольшой штраф за большие сдвиги: на однородных кадрах не выдумываем движение */
+        sad += (u < 0 ? -u : u) + (v < 0 ? -v : v);
+        if (sad < best) { best = sad; bu = u; bv = v; }
+      }
+    }
+    return { u: bu, v: bv };
+  }
+
+  /* o: { start, end, level (1|2), grab(t) → Promise<{src,sw,sh}>, onProgress(f), signal } → { track: [{t,dx,dy}], zoom } */
+  AV.analyzeStab = async function (o) {
+    var L = LEVELS[o.level] || LEVELS[1], fps = 15;
+    var n = Math.max(2, Math.min(1200, Math.ceil((o.end - o.start) * fps) + 1));
+    var step = (o.end - o.start) / (n - 1);
+    var cv = document.createElement('canvas'), g = cv.getContext('2d', { willReadFrequently: true });
+    var times = [], px = [], py = [], prev = null, cx = 0, cy = 0, w0 = SW;
+    for (var i = 0; i < n; i++) {
+      if (o.signal && o.signal.aborted) throw abortErr();
+      var t = Math.min(o.end - 0.001, o.start + i * step);
+      var fr = await o.grab(t);
+      var cur = gray(fr.src, fr.sw, fr.sh, cv, g);
+      w0 = cur.w;
+      if (prev) { var s = shiftBetween(prev, cur); cx += s.u; cy += s.v; }
+      times.push(t); px.push(cx); py.push(cy); prev = cur;
+      if (o.onProgress && i % 4 === 0) o.onProgress((i + 1) / n);
+    }
+    var half = Math.max(1, Math.round((L.win * fps) / 2)), track = [], h0 = prev.h;
+    for (var k = 0; k < n; k++) {
+      var a = Math.max(0, k - half), b = Math.min(n - 1, k + half), sx = 0, sy = 0;
+      for (var j = a; j <= b; j++) { sx += px[j]; sy += py[j]; }
+      sx /= b - a + 1; sy /= b - a + 1;
+      var dx = (sx - px[k]) / w0, dy = (sy - py[k]) / h0;
+      dx = Math.max(-L.max, Math.min(L.max, dx)); dy = Math.max(-L.max, Math.min(L.max, dy));
+      track.push({ t: times[k], dx: dx, dy: dy });
+    }
+    return { track: track, zoom: L.zoom, raw: { x: px, y: py } };
+  };
+
+  /* ---------- Звук: уровни по 50 мс ---------- */
+  AV.analyzeAudio = async function (file, dur) {
+    if (file.size > 800 * 1048576 || dur * 48000 * 2 * 4 > 480 * 1048576) throw new Error('Ролик слишком длинный для разбора звука на этом устройстве.');
+    var ac = null, buf;
+    try {
+      var ab = await file.arrayBuffer(), Ctx = window.AudioContext || window.webkitAudioContext;
+      ac = new Ctx();
+      buf = await new Promise(function (res, rej) { var p = ac.decodeAudioData(ab, res, rej); if (p && p.then) p.then(res, rej); });
+    } catch (e) { buf = null; }
+    if (ac && ac.close) { try { ac.close(); } catch (e2) { /* ничего */ } }
+    if (!buf || !buf.length) throw new Error('В видео нет звука или его не удалось прочитать.');
+    var hop = 0.05, step = Math.max(1, Math.round(buf.sampleRate * hop)), n = Math.ceil(buf.length / step), rms = new Float32Array(n);
+    var ch = [], c;
+    for (c = 0; c < buf.numberOfChannels; c++) ch.push(buf.getChannelData(c));
+    for (var i = 0; i < n; i++) {
+      var a = i * step, b = Math.min(buf.length, a + step), sum = 0;
+      for (c = 0; c < ch.length; c++) { var d = ch[c]; for (var j = a; j < b; j += 2) sum += d[j] * d[j]; }
+      rms[i] = Math.sqrt(sum / (((b - a) / 2) * ch.length || 1));
+    }
+    return { rms: rms, hop: hop, dur: buf.length / buf.sampleRate };
+  };
+  function threshold(rms) {
+    var mx = 0; for (var i = 0; i < rms.length; i++) if (rms[i] > mx) mx = rms[i];
+    return { thr: Math.max(0.004, mx * 0.06), max: mx };
+  }
+  /* Звук есть там, где уровень выше порога. Возвращает интервалы речи/звука в секундах. */
+  AV.soundIntervals = function (an, minSilence, pad) {
+    var t = threshold(an.rms), thr = t.thr, iv = [], s = -1, i;
+    if (t.max < 0.002) return [];
+    for (i = 0; i < an.rms.length; i++) {
+      var on = an.rms[i] > thr;
+      if (on && s < 0) s = i;
+      if (!on && s >= 0) { iv.push([s * an.hop, i * an.hop]); s = -1; }
+    }
+    if (s >= 0) iv.push([s * an.hop, an.rms.length * an.hop]);
+    var merged = [];                                   // склеиваем звуки, между которыми пауза короче minSilence
+    iv.forEach(function (x) {
+      var last = merged[merged.length - 1];
+      if (last && x[0] - last[1] < minSilence) last[1] = x[1]; else merged.push([x[0], x[1]]);
+    });
+    return merged.filter(function (x) { return x[1] - x[0] >= 0.15; }).map(function (x) { return [Math.max(0, x[0] - pad), Math.min(an.dur, x[1] + pad)]; });
+  };
+
+  /* ---------- Субтитры SRT / VTT ---------- */
+  function parseTime(s) {
+    var m = /^(?:(\d+):)?(\d{1,2}):(\d{2})[.,](\d{1,3})$/.exec(String(s).trim());
+    if (!m) return NaN;
+    return (+(m[1] || 0)) * 3600 + (+m[2]) * 60 + (+m[3]) + (+((m[4] + '00').slice(0, 3))) / 1000;
+  }
+  AV.parseSubs = function (text) {
+    var out = [], blocks = String(text).replace(/^﻿/, '').replace(/\r/g, '').split(/\n{2,}/);
+    blocks.forEach(function (b) {
+      var lines = b.split('\n').filter(function (l) { return l.trim() !== ''; }), k = -1;
+      for (var i = 0; i < lines.length; i++) if (lines[i].indexOf('-->') >= 0) { k = i; break; }
+      if (k < 0) return;
+      var parts = lines[k].split('-->'), st = parseTime(parts[0]), en = parseTime(parts[1].trim().split(/\s+/)[0]);
+      var txt = lines.slice(k + 1).join('\n').replace(/<[^>]+>/g, '').trim();
+      if (isFinite(st) && isFinite(en) && en > st && txt) out.push({ text: txt, start: st, end: en });
+    });
+    return out;
+  };
+})();

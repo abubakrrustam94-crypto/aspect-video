@@ -57,25 +57,36 @@
     }).filter(function (f) { return f.x1 - f.x0 > 0.01 && f.y1 - f.y0 > 0.01; });
   }
 
-  /* Центр внимания: самое крупное лицо, чуть приподнятый к глазам */
-  function pick(faces) {
+  /* Центр внимания: какое лицо выбрать, если их несколько.
+     mode: 'largest' самое крупное, 'left' левое, 'right' правое, 'center' ближе к центру, 'tap' ближайшее к точке tap.x/tap.y,
+     которую пользователь отметил на превью (дальше камера идёт за этим человеком). */
+  function pick(faces, mode, tap) {
     if (!faces.length) return null;
-    faces.sort(function (a, b) { return (b.x1 - b.x0) * (b.y1 - b.y0) - (a.x1 - a.x0) * (a.y1 - a.y0); });
-    var f = faces[0];
-    return { x: (f.x0 + f.x1) / 2, y: (f.y0 + f.y1) / 2 };
+    var cs = faces.map(function (f) { return { x: (f.x0 + f.x1) / 2, y: (f.y0 + f.y1) / 2, a: (f.x1 - f.x0) * (f.y1 - f.y0) }; });
+    var best = null, i;
+    if (mode === 'left') { best = cs[0]; for (i = 1; i < cs.length; i++) if (cs[i].x < best.x) best = cs[i]; }
+    else if (mode === 'right') { best = cs[0]; for (i = 1; i < cs.length; i++) if (cs[i].x > best.x) best = cs[i]; }
+    else if (mode === 'center' || (mode === 'tap' && tap)) {
+      var px = mode === 'tap' ? tap.x : 0.5, py = mode === 'tap' ? tap.y : 0.5, bd = 1e9;
+      cs.forEach(function (c) { var d = Math.hypot(c.x - px, c.y - py); if (d < bd) { bd = d; best = c; } });
+      if (mode === 'tap' && bd > 0.4) return null;      // отмеченного человека в кадре нет
+    } else { best = cs[0]; for (i = 1; i < cs.length; i++) if (cs[i].a > best.a) best = cs[i]; }
+    return { x: best.x, y: best.y };
   }
+  AV.pickFace = pick;
 
   /* Идёт по видео с шагом step секунд. grab(t) → Promise<{src,sw,sh}>: ставит видео на время t и отдаёт кадр.
      Возвращает дорожку [{t,x,y}] или null, если лиц не нашлось. */
   AV.trackFaces = async function (o) {
     await start();
+    var cur = o.tap ? { x: o.tap.x, y: o.tap.y } : null;
     var pts = [], total = Math.max(1, Math.ceil((o.end - o.start) / o.step) + 1), found = 0;
     for (var i = 0; i < total; i++) {
       if (o.signal && o.signal.aborted) { var e = new Error('Отменено'); e.aborted = true; throw e; }
       var t = Math.min(o.end - 0.001, o.start + i * o.step);
       var fr = await o.grab(t);
-      var c = pick(await detect(fr.src, fr.sw, fr.sh));
-      if (c) found++;
+      var c = pick(await detect(fr.src, fr.sw, fr.sh), o.mode || 'largest', cur);
+      if (c) { found++; if (o.mode === 'tap') cur = { x: c.x, y: c.y }; }
       pts.push({ t: t, c: c });
       if (o.onProgress) o.onProgress((i + 1) / total);
     }

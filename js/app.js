@@ -5,7 +5,7 @@
   var video = $('#video'), pv = $('#preview'), pctx = pv.getContext('2d', { alpha: false });
   var Q = [], cur = -1, uid = 0;
   var busy = false, abort = null, wmImg = null, wl = null, stripToken = 0;
-  var results = [];
+  var results = [], FS = null;
   var VIDEO_EXT = /\.(mp4|m4v|mov|mkv|webm|avi|3gp|ts|mts|m2ts|ogv)$/i;
 
   /* ---------- вспомогательное ---------- */
@@ -16,17 +16,29 @@
   }
   function outSize(it) {
     var o = AV.orientedSize(it.vw, it.vh, S.rot);
-    return AV.computeSize(S.rw, S.rh, S.short, o.w, o.h);
+    return AV.computeSize(S.rw, S.rh, S.format === 'gif' ? Math.min(S.short || 480, 480) : S.short, o.w, o.h);
+  }
+  /* отрезки исходника, которые попадут в результат: целый фрагмент или куски между вырезанными паузами */
+  function segsOf(it) { return it.cuts && it.cuts.length ? it.cuts : [[it.start, it.end]]; }
+  function srcDur(it) { return segsOf(it).reduce(function (a, g) { return a + (g[1] - g[0]); }, 0); }
+  function durOf(it) { return srcDur(it) / S.speed; }
+  function groupDur(items) { return items.reduce(function (a, it) { return a + durOf(it); }, 0); }
+  function outFps(dur) { return S.format === 'gif' ? (dur * 15 <= 900 ? 15 : 10) : S.fps; }
+  function stabOk(it) {
+    return !!(it.stab && it.stab.level === S.stab && it.stab.from <= it.start + 0.05 && it.stab.to >= it.end - 0.05);
   }
   function rparams(it) {
     return {
       rot: S.rot, fh: S.flipH, fv: S.flipV, mode: S.mode, color: S.color,
       focusAt: S.mode === 'crop' && S.faceTrack && it.track ? function (t) { return AV.focusAt(it.track, t); } : null,
+      stab: S.stab && stabOk(it) ? it.stab : null,
+      caps: it.caps && it.caps.length ? it.caps : null,
+      capStyle: { pos: S.capPos, size: S.capSize, color: S.capColor, box: S.capBox },
       wm: wmObj(), wmImg: wmImg
     };
   }
-  function bitrateFor(o) {
-    return Math.max(1000000, Math.min(60000000, Math.round(o.w * o.h * S.fps * S.quality)));
+  function bitrateFor(o, fps) {
+    return Math.max(1000000, Math.min(60000000, Math.round(o.w * o.h * (fps || S.fps) * S.quality)));
   }
   function baseName(f) { return (f.name || 'video').replace(/\.[^.]+$/, ''); }
   function download(url, name) {
@@ -60,6 +72,8 @@
     $('#flipV').setAttribute('aria-pressed', S.flipV); $('#flipV').classList.toggle('active', S.flipV);
     $('#colorRow').hidden = S.mode !== 'color';
     $('#faceRow').hidden = S.mode !== 'crop';
+    $('#tapNote').hidden = !(S.faceMode === 'tap' && S.faceTrack);
+    updateFmtNote();
     $('#modeNote').textContent = {
       blur: 'Поля заполняются размытой копией самого видео.',
       mirror: 'За краями кадра продолжается отражение видео.',
@@ -76,7 +90,10 @@
     updateEstimate();
   }
   function afterSet(k) {
-    if (k === 'rot' || k === 'flipH' || k === 'flipV' || k === '*') Q.forEach(function (it) { it.track = null; it.noFace = false; });
+    if (k === 'rot' || k === 'flipH' || k === 'flipV' || k === '*') Q.forEach(function (it) { it.track = null; it.noFace = false; it.stab = null; it.tap = null; });
+    if (k === 'faceMode') Q.forEach(function (it) { it.track = null; it.noFace = false; });
+    if (k === 'faceMode' && S.faceMode === 'tap' && S.faceTrack) toast('Нажмите на нужного человека в превью.');
+    if (k === 'faceMode' && S.mode === 'crop' && S.faceTrack && item() && S.faceMode !== 'tap') runFaces(item());
     syncUI();
     if (k === 'speed' || k === '*') video.playbackRate = S.speed;
     if (k === 'mute' || k === '*') video.muted = S.mute;
@@ -92,6 +109,7 @@
     if (!b) return;
     var g = b.closest('[data-group]'), v = b.dataset.val;
     if (busy) return;
+    if (g.dataset.group === 'format' && FS && FS[v] === false) { toast('Этот формат не поддерживается в вашем браузере.', true); return; }
     set(g.dataset.group, g.hasAttribute('data-num') ? Number(v) : v);
   });
   document.addEventListener('input', function (e) {
@@ -191,7 +209,7 @@
       var f = list[i];
       try {
         var p = await probe(f);
-        Q.push({ id: ++uid, file: f, url: p.url, name: f.name, vw: p.vw, vh: p.vh, dur: p.dur, start: 0, end: p.dur, track: null, noFace: false });
+        Q.push({ id: ++uid, file: f, url: p.url, name: f.name, vw: p.vw, vh: p.vh, dur: p.dur, start: 0, end: p.dur, track: null, noFace: false, caps: [], cuts: null, stab: null, tap: null, sound: null });
         added++;
       } catch (err) {
         toast('Не удалось открыть «' + f.name + '». Так бывает с HEVC/H.265, AVI и MKV: переведите в MP4 (H.264) или откройте в Chrome.', true);
@@ -220,7 +238,7 @@
     Q.forEach(function (it, i) {
       var row = el('div', 'q-item' + (i === cur ? ' on' : '')); row.setAttribute('role', 'listitem');
       var b = el('button', 'q-main'); b.type = 'button';
-      b.append(el('b', '', it.name), el('small', '', it.vw + '×' + it.vh + ' · ' + fmtTime(it.end - it.start)));
+      b.append(el('b', '', it.name), el('small', '', it.vw + '×' + it.vh + ' · ' + fmtTime(srcDur(it))));
       if (i === cur) b.setAttribute('aria-current', 'true');
       b.addEventListener('click', function () { if (!busy) select(i); });
       var x = el('button', 'q-x', '✕'); x.type = 'button'; x.setAttribute('aria-label', 'Убрать из очереди: ' + it.name);
@@ -240,7 +258,7 @@
     if (!Q.length) {
       cur = -1; video.removeAttribute('src'); video.load();
       $('#previewCard').hidden = true; $('#queueCard').hidden = true; $('#toolbar').hidden = true; $('#uploadZone').hidden = false;
-      updateFaceStatus(); updateEstimate(); updateNamePreview();
+      updateFaceStatus(); updateEstimate(); updateNamePreview(); renderCaps();
       return;
     }
     if (i < cur) cur--;
@@ -270,7 +288,7 @@
     try { await loadVideo(it); } catch (e) { toast('Не удалось показать видео «' + it.name + '».', true); return; }
     syncTrim(it);
     try { video.currentTime = Math.min(it.start + 0.05, it.dur / 2); } catch (e2) { /* ничего */ }
-    syncUI(); updateInfo(); draw();
+    syncUI(); updateInfo(); draw(); renderCaps(); updateStabStatus(); updateSilStatus();
     makeStrip(it);
     if (S.mode === 'crop' && S.faceTrack && !it.track && !it.noFace) runFaces(it);
   }
@@ -288,15 +306,21 @@
     if (pv.width !== p.w || pv.height !== p.h) { pv.width = p.w; pv.height = p.h; }
     var t = video.currentTime;
     AV.renderAt(pctx, p.w, p.h, video, Object.assign(rparams(it), {
-      outDur: (it.end - it.start) / S.speed, fadeIn: S.fadeIn, fadeOut: S.fadeOut
+      outDur: durOf(it), fadeIn: S.fadeIn, fadeOut: S.fadeOut
     }), t, Math.max(0, (t - it.start) / S.speed));
+    if (S.mode === 'crop' && S.faceTrack && S.faceMode === 'tap' && it.tap && AV.layout) {
+      var L = AV.layout, mx = L.x + it.tap.x * L.dw, my = L.y + it.tap.y * L.dh, rr = Math.max(8, p.w * 0.03);
+      pctx.save(); pctx.lineWidth = Math.max(2, p.w * 0.006);
+      pctx.strokeStyle = 'rgba(0,0,0,.7)'; pctx.beginPath(); pctx.arc(mx, my, rr + pctx.lineWidth, 0, 6.2832); pctx.stroke();
+      pctx.strokeStyle = '#fff'; pctx.beginPath(); pctx.arc(mx, my, rr, 0, 6.2832); pctx.stroke(); pctx.restore();
+    }
     $('#timeLbl').textContent = fmtTime(t);
     if (document.activeElement !== $('#seek')) $('#seek').value = t;
   }
   function updateInfo() {
     var it = item(); if (!it) return;
     var o = outSize(it);
-    $('#info').textContent = it.vw + '×' + it.vh + ' → ' + o.w + '×' + o.h + ' · ' + fmtTime((it.end - it.start) / S.speed);
+    $('#info').textContent = it.vw + '×' + it.vh + ' → ' + o.w + '×' + o.h + ' · ' + fmtTime(durOf(it)) + (it.cuts ? ' (паузы вырезаны)' : '');
     renderQueue();
   }
   video.addEventListener('seeked', draw);
@@ -345,23 +369,23 @@
   /* ---------- фрагмент ---------- */
   $('#start').addEventListener('input', function () {
     var it = item(); if (!it) return;
-    it.start = Math.max(0, Math.min(parseFloat($('#start').value), it.end - 0.2));
+    it.cuts = null; it.start = Math.max(0, Math.min(parseFloat($('#start').value), it.end - 0.2));
     $('#start').value = it.start; $('#startLbl').textContent = fmtTime(it.start);
     video.currentTime = it.start; updateInfo(); updateEstimate();
   });
   $('#end').addEventListener('input', function () {
     var it = item(); if (!it) return;
-    it.end = Math.min(it.dur, Math.max(parseFloat($('#end').value), it.start + 0.2));
+    it.cuts = null; it.end = Math.min(it.dur, Math.max(parseFloat($('#end').value), it.start + 0.2));
     $('#end').value = it.end; $('#endLbl').textContent = fmtTime(it.end);
     video.currentTime = Math.max(it.start, it.end - 0.1); updateInfo(); updateEstimate();
   });
   $('#setStart').addEventListener('click', function () {
     var it = item(); if (!it) return;
-    it.start = Math.min(video.currentTime, it.end - 0.2); syncTrim(it); updateInfo(); updateEstimate();
+    it.cuts = null; it.start = Math.min(video.currentTime, it.end - 0.2); syncTrim(it); updateInfo(); updateEstimate();
   });
   $('#setEnd').addEventListener('click', function () {
     var it = item(); if (!it) return;
-    it.end = Math.max(video.currentTime, it.start + 0.2); syncTrim(it); updateInfo(); updateEstimate();
+    it.cuts = null; it.end = Math.max(video.currentTime, it.start + 0.2); syncTrim(it); updateInfo(); updateEstimate();
   });
 
   /* ---------- поворот ---------- */
@@ -399,7 +423,7 @@
     try {
       await new Promise(function (res, rej) { fv.onloadeddata = res; fv.onerror = rej; setTimeout(function () { rej(new Error('timeout')); }, 15000); });
       var track = await AV.trackFaces({
-        start: 0, end: it.dur, step: Math.max(0.5, it.dur / 120), signal: ac.signal,
+        start: 0, end: it.dur, step: Math.max(0.5, it.dur / 120), signal: ac.signal, mode: S.faceMode, tap: it.tap,
         grab: async function (t) { await AV.seekTo(fv, t); var o = AV.getOriented(fv, S.rot, S.flipH, S.flipV); return o; },
         onProgress: function (f) { s.textContent = 'Ищу лицо: ' + Math.round(f * 100) + '%'; }
       });
@@ -413,7 +437,144 @@
       facesRunning = false; updateFaceStatus(); draw();
     }
   }
+  pv.addEventListener('click', function (e) {
+    var it = item();
+    if (!it || busy || S.mode !== 'crop' || !S.faceTrack || S.faceMode !== 'tap' || !AV.layout) return;
+    var r = pv.getBoundingClientRect(), L = AV.layout;
+    var cx = ((e.clientX - r.left) / r.width) * pv.width, cy = ((e.clientY - r.top) / r.height) * pv.height;
+    it.tap = { x: Math.max(0, Math.min(1, (cx - L.x) / L.dw)), y: Math.max(0, Math.min(1, (cy - L.y) / L.dh)) };
+    it.track = null; it.noFace = false; runFaces(it);
+  });
   $('#faceRun').addEventListener('click', function () { var it = item(); if (it) { it.track = null; it.noFace = false; runFaces(it); } });
+
+  /* ---------- подписи и субтитры ---------- */
+  function renderCaps() {
+    var it = item(), box = $('#capList'); box.replaceChildren();
+    $('#capClear').disabled = !it || !it.caps.length;
+    if (!it) return;
+    it.caps.sort(function (a, b) { return a.start - b.start; });
+    it.caps.forEach(function (c, i) {
+      var row = el('div', 'cap-row'); row.setAttribute('role', 'listitem');
+      var tx = el('input'); tx.type = 'text'; tx.value = c.text; tx.maxLength = 200; tx.setAttribute('aria-label', 'Текст подписи ' + (i + 1));
+      tx.addEventListener('input', function () { c.text = tx.value; draw(); });
+      function num(v, label, key) {
+        var n = el('input', 'cap-t'); n.type = 'number'; n.step = '0.1'; n.min = '0'; n.inputMode = 'decimal'; n.value = (Math.round(v * 10) / 10).toString(); n.setAttribute('aria-label', label + ' ' + (i + 1) + ', секунды');
+        n.addEventListener('input', function () { var x = parseFloat(n.value); if (isFinite(x) && x >= 0) { c[key] = x; draw(); } });
+        n.addEventListener('change', function () { if (c.end <= c.start) c.end = c.start + 0.5; renderCaps(); });
+        return n;
+      }
+      var del = el('button', 'q-x', '✕'); del.type = 'button'; del.setAttribute('aria-label', 'Убрать подпись ' + (i + 1));
+      del.addEventListener('click', function () { it.caps.splice(i, 1); renderCaps(); draw(); });
+      row.append(tx, num(c.start, 'Начало подписи', 'start'), num(c.end, 'Конец подписи', 'end'), del);
+      box.appendChild(row);
+    });
+  }
+  $('#capAdd').addEventListener('click', function () {
+    var it = item(); if (!it) { toast('Сначала выберите видео.'); return; }
+    var t = video.currentTime;
+    it.caps.push({ text: 'Текст', start: t, end: Math.min(it.dur, t + 2.5) });
+    renderCaps(); draw();
+    var rows = $$('#capList .cap-row'), idx = it.caps.length - 1;
+    it.caps.forEach(function (c, i) { if (c.start === t && c.text === 'Текст') idx = i; });
+    var inp = rows[idx] && rows[idx].querySelector('input[type=text]'); if (inp) { inp.focus(); inp.select(); }
+  });
+  $('#capImport').addEventListener('click', function () { if (!item()) toast('Сначала выберите видео.'); else $('#capFile').click(); });
+  $('#capFile').addEventListener('change', async function () {
+    var f = $('#capFile').files[0]; $('#capFile').value = '';
+    var it = item(); if (!f || !it) return;
+    try {
+      var list = AV.parseSubs(await f.text());
+      if (!list.length) { toast('В файле не нашлось подписей. Нужен формат SRT или VTT.', true); return; }
+      list = list.filter(function (c) { return c.start < it.dur; }).slice(0, 500);
+      it.caps = it.caps.concat(list); renderCaps(); draw();
+      toast('Добавлено подписей: ' + list.length);
+    } catch (e) { logError(e, 'субтитры'); toast('Не удалось прочитать файл.', true); }
+  });
+  $('#capClear').addEventListener('click', function () { var it = item(); if (it) { it.caps = []; renderCaps(); draw(); } });
+
+  /* ---------- стабилизация ---------- */
+  function updateStabStatus() {
+    var it = item(), s = $('#stabStatus'); if (!s) return;
+    $('#stabRun').disabled = !it || busy || !S.stab || stabBusy;
+    if (stabBusy) return;
+    s.textContent = !S.stab ? '' : !it ? '' : stabOk(it) ? 'Рассчитано: видно в превью.' : 'Ещё не рассчитано.';
+  }
+  var stabBusy = false;
+  async function runStab(it) {
+    if (stabBusy || !it || !S.stab) return;
+    stabBusy = true; updateStabStatus();
+    var s = $('#stabStatus'); s.textContent = 'Подготовка…';
+    var fv = document.createElement('video'); fv.muted = true; fv.preload = 'auto'; fv.playsInline = true; fv.className = 'vhide'; fv.src = it.url; document.body.appendChild(fv);
+    try {
+      await new Promise(function (res, rej) { fv.onloadeddata = res; fv.onerror = rej; setTimeout(function () { rej(new Error('timeout')); }, 15000); });
+      var level = S.stab, from = it.start, to = it.end;
+      var st = await AV.analyzeStab({
+        start: from, end: to, level: level, signal: busy && abort ? abort.signal : undefined,
+        grab: async function (t) { await AV.seekTo(fv, t); return AV.getOriented(fv, S.rot, S.flipH, S.flipV); },
+        onProgress: function (f) { s.textContent = 'Считаю сдвиги: ' + Math.round(f * 100) + '%'; if (busy) setProgress(stabTitle, f * 0.2, 'Стабилизация: ' + Math.round(f * 100) + '%'); }
+      });
+      it.stab = { track: st.track, zoom: st.zoom, level: level, from: from, to: to };
+    } catch (e) {
+      if (e && e.aborted) throw e;
+      logError(e, 'стабилизация'); toast('Не получилось рассчитать стабилизацию: ' + (e && e.message), true);
+    } finally {
+      fv.removeAttribute('src'); fv.load(); fv.remove();
+      stabBusy = false; updateStabStatus(); draw();
+    }
+  }
+  var stabTitle = '';
+  $('#stabRun').addEventListener('click', function () { var it = item(); if (it) { it.stab = null; runStab(it); } });
+  onSet(function (k) { if (k === 'stab' || k === '*') updateStabStatus(); });
+
+  /* ---------- тишина ---------- */
+  function updateSilStatus() {
+    var it = item(), s = $('#silStatus'); if (!s) return;
+    if (!it || !it.cuts) return;
+    s.textContent = 'Оставлено кусков: ' + it.cuts.length + ', длина ' + fmtTime(srcDur(it)) + ' из ' + fmtTime(it.dur) + '. В превью ролик играет целиком, паузы убираются при сохранении.';
+  }
+  async function soundOf(it) {
+    if (!it.sound) it.sound = await AV.analyzeAudio(it.file, it.dur);
+    return it.sound;
+  }
+  function silRun(kind) {
+    var it = item(), s = $('#silStatus'); if (!it || busy) return;
+    var btns = $$('#silCard button'); btns.forEach(function (b) { b.disabled = true; });
+    s.textContent = 'Анализирую звук…';
+    soundOf(it).then(function (an) {
+      var iv = AV.soundIntervals(an, 0.7, 0.12).map(function (x) { return [Math.max(it.start, x[0]), Math.min(it.end, x[1])]; })
+        .filter(function (x) { return x[1] - x[0] >= 0.2; });
+      if (!iv.length) { s.textContent = 'В выбранном фрагменте не нашлось звука.'; toast('Звук не найден: нечего оставлять.', true); return; }
+      var before = srcDur(it);
+      it.start = iv[0][0]; it.end = iv[iv.length - 1][1];
+      it.cuts = kind === 'cut' && iv.length > 1 ? iv : null;
+      syncTrim(it); video.currentTime = it.start; updateInfo(); updateEstimate(); draw();
+      var saved = before - srcDur(it);
+      s.textContent = saved < 0.2 ? 'Тишины не нашлось, ролик остался как был.' : it.cuts ? '' : 'Убрано по краям: ' + fmtTime(saved) + '.';
+      if (it.cuts) updateSilStatus();
+    }).catch(function (e) {
+      s.textContent = (e && e.message) || 'Не удалось разобрать звук.';
+      toast(s.textContent, true);
+    }).finally(function () { btns.forEach(function (b) { b.disabled = busy; }); });
+  }
+  $('#silEdge').addEventListener('click', function () { silRun('edge'); });
+  $('#silCut').addEventListener('click', function () { silRun('cut'); });
+  $('#silReset').addEventListener('click', function () {
+    var it = item(); if (!it || busy) return;
+    it.cuts = null; it.start = 0; it.end = it.dur; syncTrim(it); video.currentTime = 0; updateInfo(); updateEstimate(); draw();
+    $('#silStatus').textContent = 'Ролик возвращён целиком.';
+  });
+
+  /* ---------- формат результата ---------- */
+  function updateFmtNote() {
+    var n = $('#fmtNote'); if (!n) return;
+    var t = { mp4: 'Работает почти везде: телефоны, соцсети, мессенджеры. Звук AAC.',
+      webm: 'Для сайтов и Android. Звук Opus. Старые iPhone могут не открыть.',
+      gif: 'Без звука. Не больше 480 пикселей по короткой стороне и 15 кадров/с, до 60 секунд. Файл получается большим.' }[S.format] || '';
+    if (FS && FS[S.format] === false) t = 'Этот формат не поддерживается в вашем браузере. Выберите другой.';
+    n.textContent = t;
+    $$('#fmtCard [data-val]').forEach(function (b) { b.setAttribute('aria-disabled', FS && FS[b.dataset.val] === false ? 'true' : 'false'); });
+  }
+  AV.formatSupport().then(function (r) { FS = r; updateFmtNote(); }).catch(function () { /* оставим как есть */ });
 
   /* ---------- имя файла, оценка размера ---------- */
   function nextN(index) { return String((+ls.get(COUNT_KEY) || 0) + 1 + (index || 0)).padStart(3, '0'); }
@@ -434,10 +595,12 @@
   function updateEstimate() {
     var it = item(), n = $('#estNote'), w = $('#memWarn'); if (!n) return;
     if (!it) { n.textContent = ''; w.hidden = true; return; }
-    var o = outSize(it), dur = (it.end - it.start) / S.speed, est = (bitrateFor(o) + (S.mute ? 0 : 128000)) * dur / 8;
-    n.textContent = 'Результат ' + o.w + '×' + o.h + ', ' + S.fps + ' кадров/с, ~' + fmtBytes(est) + ' (' + fmtTime(dur) + ').';
+    var o = outSize(it), grp = S.concat && Q.length > 1 ? Q : [it], dur = groupDur(grp), fps = outFps(dur);
+    var est = S.format === 'gif' ? dur * fps * o.w * o.h * 0.3 : (bitrateFor(o, fps) + (S.mute || S.format === 'gif' ? 0 : 128000)) * dur / 8;
+    n.textContent = 'Результат ' + o.w + '×' + o.h + ', ' + fps + ' кадров/с, ~' + fmtBytes(est) + ' (' + fmtTime(dur) + (grp.length > 1 ? ', склейка из ' + grp.length : '') + ').';
     var warn = '';
-    if (!AV.hasOpfs() && est > DEV_MEM * 90 * 1048576) warn = 'Файл получится большим, а запись на диск в этом браузере недоступна: он собирается в памяти. На слабом телефоне может не хватить памяти. Уменьшите размер, битрейт или длину.';
+    if (S.format === 'gif' && dur * fps > 900) warn = 'Для GIF слишком длинно: не больше 90 секунд. Сократите фрагмент или ускорьте видео.';
+    else if (!AV.hasOpfs() && est > DEV_MEM * 90 * 1048576) warn = 'Файл получится большим, а запись на диск в этом браузере недоступна: он собирается в памяти. На слабом телефоне может не хватить памяти. Уменьшите размер, битрейт или длину.';
     else if (est > 1.5 * 1073741824) warn = 'Файл получится больше 1,5 ГБ. Для соцсетей лучше уменьшить размер или выбрать «Компактный» битрейт.';
     w.hidden = !warn; w.textContent = warn;
   }
@@ -467,40 +630,71 @@
   }
   $('#pCancel').addEventListener('click', function () { if (abort) abort.abort(); });
 
-  async function exportOne(it, qi, qn) {
-    var o = outSize(it), title = qn > 1 ? 'Видео ' + (qi + 1) + ' из ' + qn : 'Сохраняю видео';
-    if (S.mode === 'crop' && S.faceTrack && !it.track && !it.noFace) {
-      setProgress(title, 0, 'Ищу лицо…');
-      await runFaces(it);
+  /* Для экспорта у каждого файла своё скрытое видео: так склейка читает несколько файлов, а превью не мешает */
+  var exVids = new Map();
+  function exportVideoFor(it) {
+    if (exVids.has(it.id)) return exVids.get(it.id).pr;
+    var v = document.createElement('video'); v.className = 'vhide'; v.muted = true; v.playsInline = true; v.preload = 'auto';
+    var pr = new Promise(function (resolve, reject) {
+      v.onloadeddata = function () { resolve(v); };
+      v.onerror = function () { reject(new Error('Не открылось видео «' + it.name + '».')); };
+    });
+    exVids.set(it.id, { pr: pr, el: v });
+    v.src = it.url; document.body.appendChild(v);
+    return pr;
+  }
+  function releaseExportVideos() {
+    exVids.forEach(function (x) { x.el.removeAttribute('src'); x.el.load(); x.el.remove(); });
+    exVids.clear();
+  }
+
+  /* group — одно видео или несколько (склейка) */
+  async function exportGroup(group, title) {
+    var i, it;
+    for (i = 0; i < group.length; i++) {
+      it = group[i];
+      if (S.mode === 'crop' && S.faceTrack && !it.track && !it.noFace) { setProgress(title, 0, 'Ищу лицо…'); await runFaces(it); }
+      if (S.stab && !stabOk(it)) { stabTitle = title; setProgress(title, 0, 'Стабилизация…'); await runStab(it); }
+      if (abort.signal.aborted) { var ae = new Error('Отменено'); ae.aborted = true; throw ae; }
     }
+    var fmt = S.format, o = outSize(group[0]), dur = groupDur(group), fps = outFps(dur), segs = [];
+    group.forEach(function (g) {
+      var r = rparams(g);
+      segsOf(g).forEach(function (sg) {
+        segs.push({ file: g.file, start: sg[0], end: sg[1], dur: g.dur, r: r, load: function () { return exportVideoFor(g); } });
+      });
+    });
     var common = {
-      video: video, file: it.file, W: o.w, H: o.h, fps: S.fps, bitrate: bitrateFor(o),
-      start: it.start, end: it.end, speed: S.speed, r: rparams(it), mute: S.mute,
-      vol: S.vol / 100, norm: S.norm, fadeIn: S.fadeIn, fadeOut: S.fadeOut,
+      format: fmt, segs: segs, W: o.w, H: o.h, fps: fps, bitrate: bitrateFor(o, fps), speed: S.speed,
+      mute: S.mute, vol: S.vol / 100, norm: S.norm, fadeIn: S.fadeIn, fadeOut: S.fadeOut,
+      /* для записи в реальном времени (только один цельный отрезок) */
+      video: video, file: group[0].file, start: segs[0].start, end: segs[0].end, r: segs[0].r,
       onProgress: function (f, t) { setProgress(title, f, t); }, signal: abort.signal
     };
-    var res;
-    if (AV.canWebCodecs()) {
-      try { res = await AV.exportMp4(common); }
-      catch (err) {
-        if (err && err.aborted) throw err;
-        if (err && /Не хватает места/.test(err.message)) throw err;
-        if (!err || err.message !== 'NO_H264') logError(err, 'WebCodecs');
-        if (abort.signal.aborted) throw err;
-        toast('Быстрый режим недоступен. Идёт запись в реальном времени, не закрывайте вкладку.', false, { ms: 5000 });
-        res = await AV.exportRealtime(common);
-      }
-    } else {
-      toast('Быстрый режим недоступен в этом браузере. Идёт запись в реальном времени, не закрывайте вкладку.', false, { ms: 5000 });
+    var res, single = segs.length === 1 && group.length === 1;
+    try {
+      if (fmt === 'mp4' && !AV.canWebCodecs()) throw new Error('NO_H264');
+      if (fmt === 'webm' && typeof VideoEncoder === 'undefined') throw new Error('NO_VP9');
+      res = await AV.exportMedia(common);
+    } catch (err) {
+      if (err && err.aborted) throw err;
+      if (err && /Не хватает места/.test(err.message)) throw err;
+      if (err && err.message === 'NO_VP9') throw new Error('Этот браузер не умеет кодировать WebM. Выберите MP4.');
+      if (fmt === 'gif' || fmt === 'webm') throw err;
+      if (!err || err.message !== 'NO_H264') logError(err, 'WebCodecs');
+      if (abort.signal.aborted) throw err;
+      if (!single) throw new Error('Склейка и вырезанные паузы работают только в быстром режиме, а он недоступен в этом браузере.' + (err && err.message && err.message !== 'NO_H264' ? ' (' + err.message + ')' : ''));
+      toast('Быстрый режим недоступен. Идёт запись в реальном времени, не закрывайте вкладку.', false, { ms: 5000 });
       res = await AV.exportRealtime(common);
-    }
-    res.o = o;
+    } finally { releaseExportVideos(); }
+    res.o = o; res.fmt = fmt; res.group = group;
     return res;
   }
 
   async function runQueue(all) {
     if (busy || !item()) return;
     var items = all ? Q.slice() : [item()], startCur = cur;
+    var groups = all && S.concat && items.length > 1 ? [items] : items.map(function (x) { return [x]; });
     abort = new AbortController();
     var dir = null;
     if (S.toFolder && window.showDirectoryPicker) {
@@ -510,19 +704,21 @@
     setBusy(true); showProgress(true); setProgress('Старт', 0, 'Подготовка…'); lockOn();
     var done = 0, lastErr = null;
     try {
-      for (var i = 0; i < items.length; i++) {
-        var it = items[i], qi = Q.indexOf(it);
+      for (var i = 0; i < groups.length; i++) {
+        var grp = groups[i], it = grp[0], qi = Q.indexOf(it);
         if (qi !== cur) { await select(qi); }
         video.pause();
-        var res;
-        try { res = await exportOne(it, i, items.length); }
+        var res, title = grp.length > 1 ? 'Склейка из ' + grp.length + ' видео' : groups.length > 1 ? 'Видео ' + (i + 1) + ' из ' + groups.length : 'Сохраняю видео';
+        try { res = await exportGroup(grp, title); }
         catch (err) {
           if (err && err.aborted) throw err;
           lastErr = err; logError(err, 'экспорт');
           toast('«' + it.name + '»: ' + ((err && err.message) || err), true);
           continue;
         }
-        var name = fileName(it, res.o, i, res.ext), saved = false;
+        var name = fileName(it, res.o, i, res.ext);
+        if (grp.length > 1) name = name.replace(/(\.[^.]+)$/, '_склейка$1');
+        var saved = false;
         if (dir) {
           try {
             var fh = await dir.getFileHandle(name, { create: true }), w = await fh.createWritable();
@@ -530,15 +726,16 @@
           } catch (e2) { logError(e2, 'папка'); toast('В папку записать не удалось, файл в списке ниже.', true); }
         }
         ls.set(COUNT_KEY, String((+ls.get(COUNT_KEY) || 0) + 1));
-        addResult({ name: name, blob: res.blob, url: URL.createObjectURL(res.blob), o: res.o, warnings: res.warnings, ext: res.ext, saved: saved, streamed: res.streamed });
+        addResult({ name: name, blob: res.blob, url: URL.createObjectURL(res.blob), o: res.o, warnings: res.warnings, ext: res.ext, fmt: res.fmt, saved: saved, streamed: res.streamed });
         done++;
       }
-      if (done) toast(done > 1 ? 'Готово: ' + done + ' видео' : 'Видео готово');
+      if (done) toast(done > 1 ? 'Готово: ' + done + ' видео' : 'Готово');
       else if (!lastErr) toast('Ничего не сохранено.');
     } catch (err2) {
       if (err2 && err2.aborted) toast('Сохранение отменено.');
       else { logError(err2, 'экспорт'); toast('Не получилось: ' + ((err2 && err2.message) || err2), true); }
     } finally {
+      releaseExportVideos();
       lockOff(); showProgress(false); setBusy(false);
       if (startCur >= 0 && startCur < Q.length && startCur !== cur) await select(startCur); else { video.currentTime = item() ? item().start : 0; draw(); }
       document.dispatchEvent(new CustomEvent('avsaved'));
@@ -556,7 +753,11 @@
       info.append(el('b', '', x.name), el('small', '', x.o.w + '×' + x.o.h + ' · ' + fmtBytes(x.blob.size) + (x.saved ? ' · сохранено в папку' : '') + (x.streamed ? ' · записано на диск' : '')));
       var acts = el('div', 'res-acts');
       var watch = el('button', 'btn btn-outlined btn-sm', 'Смотреть'); watch.type = 'button';
-      watch.addEventListener('click', function () { var v = $('#resultVideo'); v.hidden = false; v.src = x.url; v.play().catch(function () { /* ждём нажатия */ }); v.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); });
+      watch.addEventListener('click', function () {
+        var v = $('#resultVideo'), im = $('#resultImg');
+        if (x.ext === 'gif') { v.pause(); v.hidden = true; im.hidden = false; im.src = x.url; im.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); return; }
+        im.hidden = true; v.hidden = false; v.src = x.url; v.play().catch(function () { /* ждём нажатия */ }); v.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      });
       var dl = el('a', 'btn btn-tonal btn-sm', 'Скачать'); dl.href = x.url; dl.download = x.name;
       acts.append(watch, dl);
       var f = new File([x.blob], x.name, { type: x.blob.type || 'video/mp4' });
@@ -568,7 +769,7 @@
       row.append(info, acts); list.appendChild(row);
     });
     var warns = []; results.slice(0, 1).forEach(function (x) { (x.warnings || []).forEach(function (w) { warns.push(w); }); });
-    if (r.ext === 'webm') warns.push('Браузер записал WebM: на некоторых устройствах такой файл открывается не везде.');
+    if (r.ext === 'webm' && r.fmt !== 'webm') warns.push('Браузер записал WebM: на некоторых устройствах такой файл открывается не везде.');
     var n = $('#resultNote'); n.hidden = !warns.length; n.textContent = warns.join(' ');
     $('#resultCard').hidden = false;
     $('#resultCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -578,6 +779,7 @@
     results.forEach(function (r) { URL.revokeObjectURL(r.url); });
     results.length = 0; $('#resultList').replaceChildren();
     var v = $('#resultVideo'); v.pause(); v.removeAttribute('src'); v.hidden = true;
+    var im = $('#resultImg'); im.removeAttribute('src'); im.hidden = true;
     $('#resultCard').hidden = true;
     AV.cleanOpfs();                        // файлы на диске нужны, пока результаты в списке
     toast('Список очищен, место освобождено');
@@ -588,7 +790,7 @@
     var it = item(); if (!it || busy) return;
     var o = outSize(it), c = document.createElement('canvas'); c.width = o.w; c.height = o.h;
     var t = video.currentTime;
-    AV.renderAt(c.getContext('2d', { alpha: false }), o.w, o.h, video, Object.assign(rparams(it), { outDur: (it.end - it.start) / S.speed, fadeIn: 0, fadeOut: 0 }), t, Math.max(0, (t - it.start) / S.speed));
+    AV.renderAt(c.getContext('2d', { alpha: false }), o.w, o.h, video, Object.assign(rparams(it), { outDur: durOf(it), fadeIn: 0, fadeOut: 0 }), t, Math.max(0, (t - it.start) / S.speed));
     c.toBlob(function (b) {
       if (!b) { toast('Не получилось сохранить кадр.', true); return; }
       var url = URL.createObjectURL(b);
@@ -607,7 +809,7 @@
   AV.cleanOpfs();
   window.AVApp = {
     Q: function () { return Q; }, select: select, addFiles: addFiles, runQueue: runQueue, results: function () { return results; },
-    runFaces: function () { return runFaces(item()); }, outSize: function () { return outSize(item()); }, setTab: setTab
+    runFaces: function () { return runFaces(item()); }, runStab: function () { return runStab(item()); }, formatSupport: function () { return FS; }, outSize: function () { return outSize(item()); }, setTab: setTab
   };
   if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(function () { /* офлайн не включится */ });
 })();

@@ -1,6 +1,6 @@
 'use strict';
 /* Aspect Studio Video — ядро: константы, настройки, журнал ошибок, уведомления. */
-const APP_VERSION = '2.1.0';
+const APP_VERSION = '2.2.0';
 const STORE_KEY = 'aspect-video-v1';
 const ERRLOG_KEY = 'aspect-video-errlog', ERRLOG_MAX = 30;
 const SEEN_KEY = 'aspect-video-seen', COUNT_KEY = 'aspect-video-count', THEME_KEY = 'aspect-video-theme', TAB_KEY = 'aspect-video-tab';
@@ -47,7 +47,9 @@ const DEF = {
   short: 1080, fps: 30, quality: 0.12,
   nameTpl: '{name}_{ratio}', translit: true, counter: false, toFolder: false,
   wmOn: false, wmType: 'text', wmText: '@mychannel', wmColor: '#ffffff', wmShadow: true,
-  wmOpacity: 70, wmSize: 5, wmPos: 'br', wmMargin: 3, wmAngle: -25, wmWhen: 'all', wmSec: 5
+  wmOpacity: 70, wmSize: 5, wmPos: 'br', wmMargin: 3, wmAngle: -25, wmWhen: 'all', wmSec: 5,
+  capPos: 'bot', capSize: 5, capColor: '#ffffff', capBox: true,
+  stab: 0, format: 'mp4', faceMode: 'largest', concat: false
 };
 const S = Object.assign({}, DEF);
 (function load() {

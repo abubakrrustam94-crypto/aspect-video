@@ -63,7 +63,8 @@
 
   /* ---------- Наборы настроек ---------- */
   var KEEP = ['rw', 'rh', 'mode', 'color', 'rot', 'flipH', 'flipV', 'speed', 'fadeIn', 'fadeOut', 'mute', 'vol', 'norm', 'short', 'fps', 'quality',
-    'nameTpl', 'translit', 'counter', 'wmOn', 'wmType', 'wmText', 'wmColor', 'wmShadow', 'wmOpacity', 'wmSize', 'wmPos', 'wmMargin', 'wmAngle', 'wmWhen', 'wmSec'];
+    'nameTpl', 'translit', 'counter', 'wmOn', 'wmType', 'wmText', 'wmColor', 'wmShadow', 'wmOpacity', 'wmSize', 'wmPos', 'wmMargin', 'wmAngle', 'wmWhen', 'wmSec',
+    'capPos', 'capSize', 'capColor', 'capBox', 'stab', 'format', 'faceMode'];
   var presets = jget(PRESETS_KEY, []);
   if (!Array.isArray(presets)) presets = [];
   function savePresets() { ls.set(PRESETS_KEY, JSON.stringify(presets)); }

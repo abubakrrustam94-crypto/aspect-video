@@ -81,7 +81,7 @@
           </div>
           <span class="count-pill" id="info"></span>
         </div>
-        <div class="stage"><canvas id="preview" aria-label="Предпросмотр результата"></canvas></div>
+        <div class="stage"><canvas id="preview" aria-label="Предпросмотр результата. В режиме «По нажатию» нажмите на человека, за которым следить"></canvas></div>
         <video id="video" class="vhide" playsinline preload="auto"></video>
         <div class="transport">
           <button type="button" class="icon-btn play" id="play" aria-label="Играть"><svg class="ic" aria-hidden="true"><use href="#i-play"/></svg></button>
@@ -106,6 +106,7 @@
         <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-save"/></svg> Готовые видео <button type="button" class="btn btn-outlined btn-sm" id="clearResults" style="margin-left:auto">Очистить список</button></div>
         <div class="results" id="resultList"></div>
         <video id="resultVideo" controls playsinline hidden></video>
+        <img id="resultImg" alt="Готовая GIF-анимация" hidden>
         <p class="note" id="resultNote" hidden></p>
       </section>
     </div>
@@ -170,7 +171,16 @@
             <button type="button" class="btn btn-tonal btn-sm" id="faceRun"><svg class="ic" aria-hidden="true"><use href="#i-user"/></svg> Найти лицо</button>
             <span class="note" id="faceStatus" style="margin:0"></span>
           </div>
-          <p class="note">Кадр «Обрезать» смещается за самым крупным лицом, а не режет по центру. Поиск идёт на устройстве, при первом запуске подгружается модель (~1,7 МБ).</p>
+          <span class="field-label" style="margin-top:12px">Чьё лицо брать, если их несколько</span>
+          <div class="seg" data-group="faceMode" role="group" aria-label="Какое лицо выбрать">
+            <button type="button" data-val="largest">Крупное</button>
+            <button type="button" data-val="left">Левое</button>
+            <button type="button" data-val="center">Центр</button>
+            <button type="button" data-val="right">Правое</button>
+            <button type="button" data-val="tap">По нажатию</button>
+          </div>
+          <p class="note" id="tapNote" hidden>Нажмите на нужного человека в превью, и камера пойдёт за ним.</p>
+          <p class="note">Кадр «Обрезать» смещается за выбранным лицом, а не режет по центру. Поиск идёт на устройстве, при первом запуске подгружается модель (~1,7 МБ).</p>
         </div>
         <p class="note" id="modeNote"></p>
       </section>
@@ -244,6 +254,29 @@
         <p class="note">Берёт текущий кадр с превью в полном размере результата: годится как обложка.</p>
       </section>
 
+      <section class="card" data-tab="video" id="stabCard">
+        <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-activity"/></svg> Стабилизация</div>
+        <div class="seg" data-group="stab" data-num role="group" aria-label="Стабилизация">
+          <button type="button" data-val="0">Выкл</button>
+          <button type="button" data-val="1">Лёгкая</button>
+          <button type="button" data-val="2">Сильная</button>
+        </div>
+        <div class="row" style="margin-top:12px">
+          <button type="button" class="btn btn-tonal btn-sm" id="stabRun">Рассчитать сейчас</button>
+          <span class="note" id="stabStatus" style="margin:0"></span>
+        </div>
+        <p class="note">Гасит мелкую дрожь рук, чуть приближая кадр, чтобы спрятать края. Резкие повороты камеры и съёмку на ходу не исправит. Если не рассчитать заранее, расчёт пойдёт перед сохранением.</p>
+      </section>
+      <section class="card" data-tab="video" id="silCard">
+        <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-activity"/></svg> Тишина</div>
+        <div class="row" style="margin:0">
+          <button type="button" class="btn btn-tonal btn-sm" id="silEdge">Обрезать по краям</button>
+          <button type="button" class="btn btn-tonal btn-sm" id="silCut">Вырезать паузы</button>
+          <button type="button" class="btn btn-outlined btn-sm" id="silReset">Вернуть</button>
+        </div>
+        <p class="note" id="silStatus">Ищет места, где нет звука, и убирает их. Паузы короче 0,7 с остаются.</p>
+      </section>
+
       <!-- ===== Водяной знак ===== -->
       <section class="card" data-tab="wm">
         <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-droplet"/></svg> Водяной знак</div>
@@ -297,6 +330,37 @@
             <div class="range-row" id="wmSecRow" style="margin-top:10px"><input type="range" data-key="wmSec" min="1" max="30" step="1" aria-label="Сколько секунд показывать знак"><output data-out="wmSec" data-unit=" с"></output></div>
           </div>
         </div>
+      </section>
+
+      <section class="card" data-tab="wm" id="capCard">
+        <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-copy"/></svg> Подписи и субтитры</div>
+        <div class="row" style="margin:0">
+          <button type="button" class="btn btn-tonal btn-sm" id="capAdd"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg> Подпись в этом месте</button>
+          <button type="button" class="btn btn-outlined btn-sm" id="capImport">Из SRT / VTT</button>
+          <button type="button" class="btn btn-outlined btn-sm" id="capClear">Убрать все</button>
+        </div>
+        <input type="file" id="capFile" accept=".srt,.vtt,text/vtt,text/plain" hidden>
+        <div class="caps" id="capList" role="list"></div>
+        <div class="stack" style="margin-top:14px">
+          <div>
+            <span class="field-label">Где показывать</span>
+            <div class="seg" data-group="capPos" role="group" aria-label="Положение подписей">
+              <button type="button" data-val="top">Сверху</button>
+              <button type="button" data-val="mid">По центру</button>
+              <button type="button" data-val="bot">Снизу</button>
+            </div>
+          </div>
+          <div>
+            <span class="field-label">Размер</span>
+            <div class="range-row"><input type="range" data-key="capSize" min="2" max="12" step="0.5" aria-label="Размер подписей"><output data-out="capSize" data-unit="%"></output></div>
+          </div>
+          <div class="row" style="margin:0">
+            <span class="field-label" style="margin:0">Цвет текста</span>
+            <input type="color" data-key="capColor" aria-label="Цвет подписей">
+            <label class="switch"><input type="checkbox" data-key="capBox"><span class="track"></span><span>Плашка под текстом</span></label>
+          </div>
+        </div>
+        <p class="note">Подписи у каждого видео свои, время указано в секундах исходного ролика. Они не зависят от скорости и вырезанных пауз.</p>
       </section>
 
       <!-- ===== Экспорт ===== -->
@@ -355,6 +419,18 @@
       <section class="card" data-tab="export">
         <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-shield"/></svg> Метаданные</div>
         <p class="note" style="margin-top:0">Результат собирается заново, а не копируется. GPS-координаты, модель телефона, дата и программа съёмки исходного видео в него не попадают. Цвет записывается как стандартный sRGB (BT.709): HDR-видео с iPhone будет с обычным, не расширенным диапазоном.</p>
+      </section>
+
+      <section class="card" data-tab="export" id="fmtCard">
+        <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-video"/></svg> Формат результата</div>
+        <div class="seg" data-group="format" role="group" aria-label="Формат результата">
+          <button type="button" data-val="mp4">MP4</button>
+          <button type="button" data-val="webm">WebM</button>
+          <button type="button" data-val="gif">GIF</button>
+        </div>
+        <p class="note" id="fmtNote"></p>
+        <label class="switch" style="margin-top:12px"><input type="checkbox" data-key="concat"><span class="track"></span><span>Склеить очередь в одно видео</span></label>
+        <p class="note">Видео из очереди пойдут друг за другом в одном файле, у каждого свой фрагмент. Кнопка «Сохранить все» выдаст один ролик.</p>
       </section>
 
       <!-- ===== Компоненты ===== -->
@@ -468,9 +544,12 @@
 </div>
 
 <script src="vendor/mp4-muxer.js"></script>
+<script src="vendor/webm-muxer.js"></script>
+<script src="vendor/gifenc.js"></script>
 <script src="js/core.js"></script>
 <script src="js/render.js"></script>
 <script src="js/faces.js"></script>
+<script src="js/analyze.js"></script>
 <script src="js/export.js"></script>
 <script src="js/app.js"></script>
 <script src="js/extras.js"></script>

@@ -155,6 +155,7 @@
     }
     ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(src, x, y, dw, dh);
+    AV.layout = { x: x, y: y, dw: dw, dh: dh, W: W, H: H };   // нужно, чтобы по нажатию на превью понять, какая это точка исходного кадра
   };
 
   /* ---------- Водяной знак ---------- */
@@ -212,11 +213,81 @@
   /* ---------- Кадр целиком ---------- */
   /* r: { rot, fh, fv, mode, color, focusAt(tSrc)->{x,y}|null, wm, wmImg, fadeIn, fadeOut, outDur }
      tSrc — время в исходнике, tOut — время в результате (с учётом скорости). */
+  /* ---------- Стабилизация: сдвиг и небольшое увеличение, чтобы спрятать края ---------- */
+  var stabCv = null, stabCtx = null;
+  AV.stabAt = function (st, t) {
+    var tr = st.track, n = tr.length - 1;
+    if (!n) return { dx: tr[0].dx, dy: tr[0].dy };
+    if (t <= tr[0].t) return { dx: tr[0].dx, dy: tr[0].dy };
+    if (t >= tr[n].t) return { dx: tr[n].dx, dy: tr[n].dy };
+    var lo = 0, hi = n;
+    while (hi - lo > 1) { var m = (lo + hi) >> 1; if (tr[m].t <= t) lo = m; else hi = m; }
+    var a = tr[lo], b = tr[hi], k = (t - a.t) / (b.t - a.t || 1);
+    return { dx: a.dx + (b.dx - a.dx) * k, dy: a.dy + (b.dy - a.dy) * k };
+  };
+  function applyStab(o, d, zoom) {
+    if (!stabCv) { stabCv = document.createElement('canvas'); stabCtx = stabCv.getContext('2d', { alpha: false }); }
+    if (stabCv.width !== o.sw || stabCv.height !== o.sh) { stabCv.width = o.sw; stabCv.height = o.sh; }
+    stabCtx.save();
+    stabCtx.translate(o.sw / 2 + d.dx * o.sw, o.sh / 2 + d.dy * o.sh);
+    stabCtx.scale(zoom, zoom);
+    stabCtx.drawImage(o.src, -o.sw / 2, -o.sh / 2, o.sw, o.sh);
+    stabCtx.restore();
+    return { src: stabCv, sw: o.sw, sh: o.sh };
+  }
+
+  /* ---------- Титры ---------- */
+  function wrapLines(ctx, text, maxW) {
+    var out = [];
+    String(text).split('\n').forEach(function (par) {
+      var words = par.split(/\s+/).filter(Boolean), line = '';
+      if (!words.length) { out.push(''); return; }
+      words.forEach(function (w) {
+        var test = line ? line + ' ' + w : w;
+        if (line && ctx.measureText(test).width > maxW) { out.push(line); line = w; } else line = test;
+      });
+      out.push(line);
+    });
+    return out;
+  }
+  /* caps: [{text,start,end}] в секундах исходника; st: { pos: 'top'|'mid'|'bot', size, color, box } */
+  AV.drawCaptions = function (ctx, W, H, caps, st, t) {
+    if (!caps || !caps.length) return;
+    var texts = [];
+    for (var i = 0; i < caps.length; i++) if (t >= caps[i].start && t < caps[i].end && String(caps[i].text).trim()) texts.push(caps[i].text);
+    if (!texts.length) return;
+    var short = Math.min(W, H), px = Math.max(10, short * (st.size / 100)), lh = px * 1.28;
+    ctx.save();
+    ctx.font = '700 ' + px + 'px "Roboto Flex", system-ui, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    var lines = wrapLines(ctx, texts.join('\n'), W * 0.88), bh = lines.length * lh;
+    var top = st.pos === 'top' ? H * 0.08 : st.pos === 'mid' ? (H - bh) / 2 : H * 0.9 - bh;
+    if (st.box) {
+      var bw = 0; lines.forEach(function (l) { bw = Math.max(bw, ctx.measureText(l).width); });
+      var pad = px * 0.35, rx = W / 2 - bw / 2 - pad, ry = top - pad * 0.6, rw = bw + pad * 2, rh = bh + pad * 1.2, rr = px * 0.3;
+      ctx.fillStyle = 'rgba(0,0,0,0.62)';
+      ctx.beginPath(); ctx.moveTo(rx + rr, ry); ctx.arcTo(rx + rw, ry, rx + rw, ry + rh, rr); ctx.arcTo(rx + rw, ry + rh, rx, ry + rh, rr);
+      ctx.arcTo(rx, ry + rh, rx, ry, rr); ctx.arcTo(rx, ry, rx + rw, ry, rr); ctx.closePath(); ctx.fill();
+    }
+    ctx.fillStyle = st.color; ctx.lineJoin = 'round'; ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = px * 0.14;
+    lines.forEach(function (l, i) {
+      var y = top + lh * i + lh / 2;
+      if (!st.box) ctx.strokeText(l, W / 2, y);
+      ctx.fillText(l, W / 2, y);
+    });
+    ctx.restore();
+  };
+
+  /* ---------- Кадр целиком ---------- */
+  /* r: { rot, fh, fv, mode, color, focusAt(tSrc)->{x,y}|null, stab: {track, zoom}|null, caps, capStyle, wm, wmImg, fadeIn, fadeOut, outDur }
+     tSrc — время в исходнике, tOut — время в результате (с учётом скорости и склейки). */
   AV.renderAt = function (ctx, W, H, video, r, tSrc, tOut) {
     var o = AV.getOriented(video, r.rot, r.fh, r.fv);
+    if (r.stab && r.stab.track && r.stab.track.length) o = applyStab(o, AV.stabAt(r.stab, tSrc), r.stab.zoom);
     AV.drawFrame(ctx, W, H, o.src, o.sw, o.sh, {
       mode: r.mode, color: r.color, focus: r.focusAt ? r.focusAt(tSrc) : null
     });
+    if (r.caps && r.caps.length) AV.drawCaptions(ctx, W, H, r.caps, r.capStyle, tSrc);
     AV.drawWatermark(ctx, W, H, r.wm, r.wmImg, tOut);
     var a = 0;
     if (r.fadeIn > 0 && tOut < r.fadeIn) a = Math.max(a, 1 - tOut / r.fadeIn);
