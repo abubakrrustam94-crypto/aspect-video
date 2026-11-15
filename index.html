@@ -35,6 +35,10 @@
     <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
     <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
     <symbol id="i-share" viewBox="0 0 24 24"><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="m8.2 10.8 7.6-3.6M8.2 13.2l7.6 3.6"/></symbol>
+    <symbol id="i-box" viewBox="0 0 24 24"><path d="M21 8 12 3 3 8v8l9 5 9-5zM3 8l9 5 9-5M12 13v8"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M9 3h6l-1 6 3 3v2H7v-2l3-3zM12 14v7"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
     <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 5 6v6c0 4.4 3 7.6 7 9 4-1.4 7-4.6 7-9V6z"/></symbol>
   </defs>
 </svg>
@@ -49,24 +53,26 @@
       </div>
     </div>
     <div class="top-actions">
+      <button type="button" class="icon-btn" id="helpBtn" aria-label="Как пользоваться"><svg class="ic" aria-hidden="true"><use href="#i-help"/></svg></button>
       <button type="button" class="icon-btn" id="themeBtn" aria-label="Переключить тему"><svg class="ic" aria-hidden="true"><use href="#i-sun"/></svg></button>
     </div>
   </header>
 
-  <section class="upload-zone" id="uploadZone" tabindex="0" role="button" aria-label="Выбрать видео">
-    <div class="upload-ic" aria-hidden="true">🎞️</div>
-    <strong>Выберите видео</strong>
-    <span>или перетащите файлы сюда · можно несколько</span>
-    <input id="fileInput" type="file" accept="video/*,.mp4,.mov,.m4v,.mkv,.webm,.avi,.3gp,.ts,.mts" multiple hidden>
-    <div class="examples" id="exRow">
-      <button type="button" class="btn btn-outlined btn-sm" id="howLink">Видео не уходит на сервер. Как это работает?</button>
-    </div>
-  </section>
-
-  <div class="layout" id="editor" hidden>
+  <main>
+  <div class="layout" id="editor">
     <!-- ============ Превью ============ -->
     <div class="col-main">
-      <section class="card preview-card">
+    <section class="upload-zone" id="uploadZone" aria-label="Загрузка видео">
+      <div class="upload-ic" aria-hidden="true">🎞️</div>
+      <button type="button" class="btn btn-main upload-btn" id="uploadBtn">Выберите видео</button>
+      <span>или перетащите файлы сюда · можно несколько</span>
+      <input id="fileInput" type="file" accept="video/*,.mp4,.mov,.m4v,.mkv,.webm,.avi,.3gp,.ts,.mts" multiple hidden>
+      <div class="examples" id="exRow">
+        <button type="button" class="btn btn-outlined btn-sm" id="howLink">Видео не уходит на сервер. Как это работает?</button>
+      </div>
+    </section>
+
+      <section class="card preview-card" id="previewCard" hidden>
         <div class="preview-head">
           <div class="nav-group" aria-label="Видео в очереди">
             <button type="button" id="prevItem" aria-label="Предыдущее видео">‹</button>
@@ -87,7 +93,7 @@
         </div>
       </section>
 
-      <section class="card" id="queueCard">
+      <section class="card" id="queueCard" hidden>
         <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-video"/></svg> Очередь <span class="count-pill" id="qCount"></span></div>
         <div class="queue" id="queue" role="list"></div>
         <div class="row" style="margin-top:12px">
@@ -106,15 +112,32 @@
 
     <!-- ============ Настройки ============ -->
     <div class="col-settings" id="colSettings">
+      <div class="set-search">
+        <svg class="ic" aria-hidden="true"><use href="#i-search"/></svg>
+        <input type="search" id="setSearch" placeholder="Найти настройку…" aria-label="Поиск по настройкам" autocomplete="off" enterkeyhint="search">
+        <button type="button" class="icon-btn" id="setSearchClear" aria-label="Очистить поиск" hidden>✕</button>
+      </div>
+      <p class="note" id="setNone" hidden>Ничего не найдено. Попробуй другое слово, например «знак», «звук» или «размер».</p>
       <nav class="tabs" id="settingsTabs" role="tablist" aria-label="Разделы настроек">
         <button type="button" role="tab" data-tab="frame"><i aria-hidden="true"><svg class="ic"><use href="#i-frame"/></svg></i><span>Кадр</span></button>
         <button type="button" role="tab" data-tab="video"><i aria-hidden="true"><svg class="ic"><use href="#i-video"/></svg></i><span>Видео</span></button>
         <button type="button" role="tab" data-tab="wm"><i aria-hidden="true"><svg class="ic"><use href="#i-droplet"/></svg></i><span>Знак</span></button>
         <button type="button" role="tab" data-tab="export"><i aria-hidden="true"><svg class="ic"><use href="#i-save"/></svg></i><span>Экспорт</span></button>
+        <button type="button" role="tab" data-tab="components"><i aria-hidden="true"><svg class="ic"><use href="#i-box"/></svg></i><span>Компоненты</span></button>
         <button type="button" role="tab" data-tab="about"><i aria-hidden="true"><svg class="ic"><use href="#i-help"/></svg></i><span>О программе</span></button>
       </nav>
 
       <!-- ===== Кадр ===== -->
+      <section class="card" data-tab="frame" id="presetsCard">
+        <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-save"/></svg> Мои наборы</div>
+        <div class="chips" id="presetList" role="group" aria-label="Сохранённые наборы настроек"></div>
+        <p class="note" id="presetEmpty">Пока пусто. Настрой всё как нравится и сохрани набор, например «Мой Reels со знаком».</p>
+        <div class="row" style="margin-top:12px">
+          <input class="text-input" id="presetName" type="text" maxlength="30" placeholder="Название набора" aria-label="Название набора" autocomplete="off" style="flex:1 1 160px;width:auto">
+          <button type="button" class="btn btn-tonal btn-sm" id="presetSave">Сохранить</button>
+        </div>
+        <p class="note">В набор входят формат, заполнение, скорость, звук, знак, размер и имя файла. Фрагменты видео в набор не входят.</p>
+      </section>
       <section class="card" data-tab="frame">
         <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-sparkles"/></svg> Сценарий</div>
         <div class="chips" id="scenarios" role="group" aria-label="Готовые сценарии"></div>
@@ -147,7 +170,7 @@
             <button type="button" class="btn btn-tonal btn-sm" id="faceRun"><svg class="ic" aria-hidden="true"><use href="#i-user"/></svg> Найти лицо</button>
             <span class="note" id="faceStatus" style="margin:0"></span>
           </div>
-          <p class="note">Кадр «Обрезать» смещается за самым крупным лицом, а не режет по центру. Поиск идёт на устройстве, при первом запуске подгружается модель (~1,6 МБ).</p>
+          <p class="note">Кадр «Обрезать» смещается за самым крупным лицом, а не режет по центру. Поиск идёт на устройстве, при первом запуске подгружается модель (~1,7 МБ).</p>
         </div>
         <p class="note" id="modeNote"></p>
       </section>
@@ -334,7 +357,40 @@
         <p class="note" style="margin-top:0">Результат собирается заново, а не копируется. GPS-координаты, модель телефона, дата и программа съёмки исходного видео в него не попадают. Цвет записывается как стандартный sRGB (BT.709): HDR-видео с iPhone будет с обычным, не расширенным диапазоном.</p>
       </section>
 
+      <!-- ===== Компоненты ===== -->
+      <section class="card" data-tab="components" id="compCard">
+        <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-box"/></svg> Компоненты</div>
+        <p class="note" style="margin-top:0">Основное работает сразу. Дополнительные файлы можно скачать заранее, чтобы они работали без интернета, или удалить, чтобы освободить место.</p>
+        <div class="comp-list" id="compList"></div>
+      </section>
+      <section class="card" data-tab="components" id="storageCard">
+        <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-activity"/></svg> Место на устройстве</div>
+        <div class="speed-out" id="storageOut" role="status"></div>
+        <div class="row" style="margin-top:12px">
+          <button type="button" class="btn btn-outlined btn-sm" id="storageRefresh">Обновить</button>
+          <button type="button" class="btn btn-outlined btn-sm" id="tmpClear">Удалить временные файлы</button>
+        </div>
+        <p class="note">Временные файлы появляются при сохранении больших видео и стираются сами при следующем запуске. Видео в списке «Готовые» после очистки перестанут скачиваться.</p>
+      </section>
+
       <!-- ===== О программе ===== -->
+      <section class="card" data-tab="about" id="lookCard">
+        <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-sparkles"/></svg> Оформление</div>
+        <div class="stack">
+          <div>
+            <span class="field-label">Тема</span>
+            <div class="seg" id="themeSeg" role="group" aria-label="Тема">
+              <button type="button" data-mode="auto">Как в системе</button>
+              <button type="button" data-mode="light">Светлая</button>
+              <button type="button" data-mode="dark">Тёмная</button>
+            </div>
+          </div>
+          <div>
+            <span class="field-label">Цвет акцента</span>
+            <div class="accent-row" id="accentRow" role="group" aria-label="Цвет акцента"></div>
+          </div>
+        </div>
+      </section>
       <section class="card" id="cardAbout" data-tab="about">
         <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-help"/></svg> О программе</div>
         <p class="about-line"><strong>Aspect Studio Video</strong> <span id="appVersion" class="ver"></span></p>
@@ -344,6 +400,7 @@
         <div class="row" style="margin-top:12px">
           <a class="btn btn-outlined btn-sm" id="repoLink" href="https://github.com/abubakrrustam94-crypto/aspect-video" target="_blank" rel="noopener noreferrer">Исходный код на GitHub</a>
           <button type="button" class="btn btn-outlined btn-sm" id="howBtn">Как это работает</button>
+          <button type="button" class="btn btn-outlined btn-sm" id="onbBtn">Показать обучение</button>
           <button type="button" class="btn btn-outlined btn-sm" id="wnOpenBtn"><svg class="ic" aria-hidden="true"><use href="#i-sparkles"/></svg> Что нового</button>
           <button type="button" class="btn btn-outlined btn-sm" id="speedBtn"><svg class="ic" aria-hidden="true"><use href="#i-activity"/></svg> Проверить скорость</button>
           <button type="button" class="btn btn-outlined btn-sm" id="reportBtn">Сообщить о проблеме</button>
@@ -356,15 +413,17 @@
           <pre id="errLogText" tabindex="0"></pre>
           <div class="row"><button type="button" class="btn btn-outlined btn-sm" id="errLogCopy"><svg class="ic" aria-hidden="true"><use href="#i-copy"/></svg> Копировать</button><button type="button" class="btn btn-outlined btn-sm" id="errLogShare">Отправить отчёт</button><button type="button" class="btn btn-outlined btn-sm" id="errLogClear">Очистить</button></div>
         </details>
-        <p class="note" id="resetNote" hidden>Будут удалены настройки, счётчик и тема. Нажми ещё раз, чтобы подтвердить.</p>
+        <p class="note" id="resetNote" hidden>Будут удалены настройки, наборы, цвет акцента и тема. Нажми ещё раз, чтобы подтвердить.</p>
       </section>
     </div>
   </div>
+  </main>
 
   <footer class="foot">Файлы не покидают устройство</footer>
 </div>
 
 <!-- Панель сохранения -->
+<aside class="dock" aria-label="Сохранение">
 <div class="toolbar" id="toolbar" hidden>
   <button type="button" class="tb-btn" id="saveAllBtn" hidden><svg class="ic" aria-hidden="true"><use href="#i-save"/></svg> <span>Сохранить все</span></button>
   <button type="button" class="tb-btn primary" id="saveBtn"><svg class="ic" aria-hidden="true"><use href="#i-save"/></svg> <span>Сохранить видео</span></button>
@@ -377,8 +436,22 @@
   <button type="button" class="btn btn-outlined btn-sm" id="pCancel">Отмена</button>
 </div>
 
+</aside>
+
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+<div class="modal onb" id="onboard" role="dialog" aria-modal="true" aria-labelledby="onbTitle" hidden>
+  <div class="onb-card">
+    <div class="onb-ic" id="onbIc" aria-hidden="true"></div>
+    <h2 id="onbTitle"></h2>
+    <p id="onbText"></p>
+    <div class="onb-dots" id="onbDots" aria-hidden="true"></div>
+    <div class="onb-actions">
+      <button type="button" class="btn btn-outlined" id="onbSkip">Пропустить</button>
+      <button type="button" class="btn btn-main" id="onbNext">Далее</button>
+    </div>
+  </div>
+</div>
 <div class="modal onb" id="whatsnew" role="dialog" aria-modal="true" aria-labelledby="wnTitle" hidden>
   <div class="onb-card wn-card">
     <h2 id="wnTitle">Что нового</h2>
@@ -400,6 +473,7 @@
 <script src="js/faces.js"></script>
 <script src="js/export.js"></script>
 <script src="js/app.js"></script>
+<script src="js/extras.js"></script>
 <script src="js/about.js"></script>
 </body>
 </html>

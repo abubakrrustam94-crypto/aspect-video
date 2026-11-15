@@ -1,9 +1,10 @@
 'use strict';
 /* Aspect Studio Video — ядро: константы, настройки, журнал ошибок, уведомления. */
-const APP_VERSION = '2.0.0';
+const APP_VERSION = '2.1.0';
 const STORE_KEY = 'aspect-video-v1';
 const ERRLOG_KEY = 'aspect-video-errlog', ERRLOG_MAX = 30;
 const SEEN_KEY = 'aspect-video-seen', COUNT_KEY = 'aspect-video-count', THEME_KEY = 'aspect-video-theme', TAB_KEY = 'aspect-video-tab';
+const PRESETS_KEY = 'aspect-video-presets', ACCENT_KEY = 'aspect-video-accent', ONB_KEY = 'aspect-video-onboarded', PIN_KEY = 'aspect-video-pins', FOLD_KEY = 'aspect-video-folds';
 const REPO = 'https://github.com/abubakrrustam94-crypto/aspect-video';
 
 const $ = (s, r = document) => r.querySelector(s);

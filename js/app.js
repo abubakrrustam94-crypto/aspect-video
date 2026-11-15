@@ -124,6 +124,7 @@
 
   /* ---------- вкладки ---------- */
   function setTab(name) {
+    window.AVTab = name;
     $$('#settingsTabs [data-tab]').forEach(function (b) {
       var on = b.dataset.tab === name;
       b.setAttribute('aria-selected', on ? 'true' : 'false');
@@ -148,17 +149,22 @@
   });
 
   /* ---------- тема ---------- */
-  function applyTheme(t) {
+  function resolvedTheme() {
+    var m = ls.get(THEME_KEY);
+    return m === 'light' || m === 'dark' ? m : (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+  }
+  function applyTheme() {
+    var t = resolvedTheme();
     document.documentElement.dataset.theme = t;
     var m = document.querySelector('meta[name="theme-color"]'); if (m) m.content = t === 'light' ? '#faf8ff' : '#0f0f14';
     $('#themeBtn use').setAttribute('href', t === 'light' ? '#i-moon' : '#i-sun');
     $('#themeBtn').setAttribute('aria-label', t === 'light' ? 'Включить тёмную тему' : 'Включить светлую тему');
+    document.dispatchEvent(new CustomEvent('avtheme'));
   }
-  applyTheme(ls.get(THEME_KEY) || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'));
-  $('#themeBtn').addEventListener('click', function () {
-    var t = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
-    ls.set(THEME_KEY, t); applyTheme(t);
-  });
+  window.applyTheme = applyTheme;
+  applyTheme();
+  $('#themeBtn').addEventListener('click', function () { ls.set(THEME_KEY, resolvedTheme() === 'light' ? 'dark' : 'light'); applyTheme(); });
+  matchMedia('(prefers-color-scheme: light)').addEventListener('change', function () { if (!ls.get(THEME_KEY)) applyTheme(); });
 
   /* ---------- добавление файлов ---------- */
   function probe(file) {
@@ -194,14 +200,14 @@
     }
     if (!added) return;
     $('#uploadZone').hidden = true;
-    $('#editor').hidden = false; $('#toolbar').hidden = false;
+    $('#previewCard').hidden = false; $('#queueCard').hidden = false; $('#toolbar').hidden = false;
     renderQueue();
     if (first || cur < 0) await select(0);
     else toast('Добавлено видео: ' + added);
   }
   var fi = $('#fileInput');
   $('#uploadZone').addEventListener('click', function (e) { if (!e.target.closest('button')) fi.click(); });
-  $('#uploadZone').addEventListener('keydown', function (e) { if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) { e.preventDefault(); fi.click(); } });
+  $('#uploadBtn').addEventListener('click', function () { fi.click(); });
   $('#addMore').addEventListener('click', function () { if (!busy) fi.click(); });
   fi.addEventListener('change', function () { if (fi.files.length) addFiles(fi.files); fi.value = ''; });
   ['dragenter', 'dragover'].forEach(function (ev) { document.addEventListener(ev, function (e) { e.preventDefault(); $('#uploadZone').classList.add('over'); }); });
@@ -233,7 +239,8 @@
     Q.splice(i, 1);
     if (!Q.length) {
       cur = -1; video.removeAttribute('src'); video.load();
-      $('#editor').hidden = true; $('#toolbar').hidden = true; $('#uploadZone').hidden = false;
+      $('#previewCard').hidden = true; $('#queueCard').hidden = true; $('#toolbar').hidden = true; $('#uploadZone').hidden = false;
+      updateFaceStatus(); updateEstimate(); updateNamePreview();
       return;
     }
     if (i < cur) cur--;
@@ -595,8 +602,7 @@
   /* ---------- старт ---------- */
   $('#folderCard').hidden = !window.showDirectoryPicker;
   if (!window.showDirectoryPicker && S.toFolder) set('toFolder', false, true);
-  $('#editor').hidden = true;
-  setTab(['frame', 'video', 'wm', 'export', 'about'].indexOf(ls.get(TAB_KEY)) >= 0 ? ls.get(TAB_KEY) : 'frame');
+  setTab(['frame', 'video', 'wm', 'export', 'components', 'about'].indexOf(ls.get(TAB_KEY)) >= 0 ? ls.get(TAB_KEY) : 'frame');
   syncUI();
   AV.cleanOpfs();
   window.AVApp = {

@@ -12,7 +12,22 @@ const srv = http.createServer((q, r) => {
   fs.readFile(p, (e, d) => { if (e) { r.writeHead(404); r.end(); return; } r.writeHead(200, { 'content-type': mime[path.extname(p)] || 'application/octet-stream' }); r.end(d); });
 }).listen(8766, async () => {
   const b = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
+  /* первое посещение: мини-обучение */
+  {
+    const c0 = await b.newContext({ viewport: { width: 430, height: 900 } }); const p0 = await c0.newPage();
+    await p0.goto('http://localhost:8766/index.html');
+    await p0.waitForSelector('#onboard:not([hidden])', { timeout: 4000 }).catch(() => {});
+    ok(await p0.locator('#onboard').isVisible(), 'обучение показывается новичку');
+    await p0.click('#onbNext'); await p0.click('#onbNext');
+    ok((await p0.textContent('#onbNext')) === 'Понятно', 'последний шаг обучения');
+    await p0.click('#onbNext');
+    ok(await p0.locator('#onboard').isHidden() && (await p0.evaluate(() => localStorage.getItem('aspect-video-onboarded'))) === '1', 'обучение закрывается и запоминается');
+    await p0.reload(); await p0.waitForTimeout(900);
+    ok(await p0.locator('#onboard').isHidden(), 'повторно обучение не показывается');
+    await c0.close();
+  }
   const ctx = await b.newContext({ viewport: { width: 430, height: 900 }, acceptDownloads: true });
+  await ctx.addInitScript(() => { try { localStorage.setItem('aspect-video-onboarded', '1'); } catch (e) { /* ничего */ } });
   const pg = await ctx.newPage();
   const errs = [];
   pg.on('pageerror', e => errs.push('PAGEERR ' + e.message));
@@ -21,11 +36,14 @@ const srv = http.createServer((q, r) => {
   try {
     await pg.goto('http://localhost:8766/index.html');
     ok(await pg.locator('#uploadZone').isVisible(), 'экран загрузки виден');
-    ok(await pg.locator('#editor').isHidden(), 'редактор скрыт до загрузки');
+    ok(await pg.locator('#previewCard').isHidden() && await pg.locator('#toolbar').isHidden(), 'превью и кнопки сохранения скрыты до загрузки');
+    ok(await pg.locator('#settingsTabs').isVisible(), 'вкладки видны до загрузки видео');
+    await pg.click('#settingsTabs [data-tab="about"]'); ok(await pg.locator('#cardAbout').isVisible(), 'О программе открывается до загрузки видео');
+    await pg.click('#settingsTabs [data-tab="frame"]');
 
     /* загрузка двух видео */
     await pg.setInputFiles('#fileInput', [fa, fb]);
-    await pg.waitForSelector('#editor:not([hidden])', { timeout: 10000 });
+    await pg.waitForSelector('#previewCard:not([hidden])', { timeout: 10000 });
     await pg.waitForFunction(() => window.AVApp.Q().length === 2, null, { timeout: 10000 });
     await pg.waitForTimeout(600);
     ok((await pg.locator('.q-item').count()) === 2, 'в очереди 2 видео');
@@ -103,9 +121,64 @@ const srv = http.createServer((q, r) => {
     await pg.waitForTimeout(300);
     await pg.screenshot({ path: path.join(outDir, 'faces.png'), fullPage: false });
 
+
+    /* наборы настроек */
+    await pg.click('#settingsTabs [data-tab="frame"]');
+    await pg.click('#presets .chip[data-id="1:1"]');
+    await pg.fill('#presetName', 'Мой набор'); await pg.click('#presetSave');
+    ok((await pg.locator('#presetList .preset').count()) === 1, 'набор сохранён');
+    await pg.click('#presets .chip[data-id="16:9"]');
+    await pg.click('#presetList .preset .chip');
+    ok((await pg.evaluate(() => document.querySelector('#presets .chip.active').dataset.id)) === '1:1', 'набор применяется (формат вернулся к 1:1)');
+    await pg.reload(); await pg.waitForTimeout(500);
+    ok((await pg.locator('#presetList .preset').count()) === 1, 'набор пережил перезагрузку');
+    await pg.click('#presetList .preset-x');
+    ok((await pg.locator('#presetList .preset').count()) === 0, 'набор удалён');
+
+    /* поиск по настройкам */
+    await pg.fill('#setSearch', 'водян');
+    ok(await pg.locator('.card[data-tab="wm"]').first().isVisible() && await pg.locator('.card[data-tab="frame"]').first().isHidden(), 'поиск «водян» показывает карточку знака с другой вкладки');
+    await pg.fill('#setSearch', 'яяяя');
+    ok(await pg.locator('#setNone').isVisible(), 'поиск без результата сообщает об этом');
+    await pg.click('#setSearchClear');
+    ok(await pg.locator('.card[data-tab="frame"]').first().isVisible(), 'после очистки поиска вернулась вкладка');
+
+    /* закрепление и сворачивание */
+    await pg.click('#settingsTabs [data-tab="export"]');
+    await pg.click('.card[data-cid="export-1"] .pin-btn');
+    await pg.click('#settingsTabs [data-tab="video"]');
+    ok(await pg.locator('.card[data-cid="export-1"]').isVisible(), 'закреплённая карточка видна на другой вкладке');
+    await pg.click('.card[data-cid="export-1"] .pin-btn');
+    ok(await pg.locator('.card[data-cid="export-1"]').isHidden(), 'после открепления карточка исчезла с чужой вкладки');
+    await pg.click('.card[data-cid="video-1"] .card-fold');
+    ok(await pg.locator('.card[data-cid="video-1"] #start').isHidden(), 'карточка сворачивается');
+    await pg.click('.card[data-cid="video-1"] .card-fold');
+    ok(await pg.locator('.card[data-cid="video-1"] #start').isVisible(), 'карточка разворачивается');
+
+    /* тема и акцент */
+    await pg.click('#settingsTabs [data-tab="about"]');
+    const pr0 = await pg.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--md-sys-color-primary'));
+    await pg.click('#accentRow .accent-dot[data-id="green"]');
+    const pr1 = await pg.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--md-sys-color-primary'));
+    ok(pr0 !== pr1, 'акцент меняет основной цвет');
+    await pg.click('#themeSeg [data-mode="light"]');
+    ok((await pg.getAttribute('html', 'data-theme')) === 'light', 'тема «Светлая» из оформления');
+    await pg.click('#themeSeg [data-mode="auto"]');
+
+    /* компоненты */
+    await pg.click('#settingsTabs [data-tab="components"]');
+    await pg.waitForSelector('#compList .comp-row', { timeout: 5000 });
+    await pg.click('#compList .comp-row .btn-tonal');
+    await pg.waitForFunction(() => /Скачано: работает/.test(document.querySelector('#compList').textContent), null, { timeout: 20000 }).catch(() => {});
+    ok(/Скачано: работает/.test(await pg.textContent('#compList')), 'модель лиц скачана в кэш');
+    await pg.click('#compList .comp-row .danger');
+    await pg.waitForFunction(() => /Не скачано/.test(document.querySelector('#compList').textContent), null, { timeout: 8000 }).catch(() => {});
+    ok(/Не скачано/.test(await pg.textContent('#compList')), 'модель лиц удалена из кэша');
+    ok((await pg.locator('#storageOut .sp-row').count()) >= 2, 'место на устройстве показано');
+
     /* О программе */
     await pg.click('#settingsTabs [data-tab="about"]');
-    ok((await pg.textContent('#appVersion')) === 'v2.0.0', 'версия показана');
+    ok((await pg.textContent('#appVersion')) === "v2.1.0", 'версия показана');
     await pg.click('#wnOpenBtn');
     await pg.waitForSelector('#wnList h3', { timeout: 5000 });
     ok((await pg.locator('#wnList h3').count()) >= 2, 'что нового: записей ' + (await pg.locator('#wnList h3').count()));
