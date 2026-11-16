@@ -14,7 +14,7 @@ const srv = http.createServer((q, r) => { let p = path.join(root, decodeURICompo
     if (!r.length) console.log(`[${label}] нарушений нет`);
   };
   for (const scheme of ['dark', 'light']) {
-    const ctx = await b.newContext({ viewport: { width: 430, height: 900 }, colorScheme: scheme });
+    const ctx = await b.newContext({ viewport: { width: 430, height: 900 }, colorScheme: scheme, locale: process.env.AV_LOCALE || 'ru-RU' });
     await ctx.addInitScript(() => { try { localStorage.setItem('aspect-video-onboarded', '1'); } catch (e) {} });
     const pg = await ctx.newPage(); await pg.goto('http://localhost:8767/index.html');
     for (const t of ['frame', 'video', 'wm', 'export', 'components', 'about']) { await pg.click(`#settingsTabs [data-tab="${t}"]`); await pg.waitForTimeout(150); await run(pg, scheme + ' без видео ' + t); }

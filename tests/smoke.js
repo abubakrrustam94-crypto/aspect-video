@@ -14,7 +14,7 @@ const srv = http.createServer((q, r) => {
   const b = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
   /* первое посещение: мини-обучение */
   {
-    const c0 = await b.newContext({ viewport: { width: 430, height: 900 } }); const p0 = await c0.newPage();
+    const c0 = await b.newContext({ viewport: { width: 430, height: 900 }, locale: 'ru-RU' }); const p0 = await c0.newPage();
     await p0.goto('http://localhost:8766/index.html');
     await p0.waitForSelector('#onboard:not([hidden])', { timeout: 4000 }).catch(() => {});
     ok(await p0.locator('#onboard').isVisible(), 'обучение показывается новичку');
@@ -26,7 +26,7 @@ const srv = http.createServer((q, r) => {
     ok(await p0.locator('#onboard').isHidden(), 'повторно обучение не показывается');
     await c0.close();
   }
-  const ctx = await b.newContext({ viewport: { width: 430, height: 900 }, acceptDownloads: true });
+  const ctx = await b.newContext({ viewport: { width: 430, height: 900 }, acceptDownloads: true, locale: 'ru-RU' });
   await ctx.addInitScript(() => { try { localStorage.setItem('aspect-video-onboarded', '1'); } catch (e) { /* ничего */ } });
   const pg = await ctx.newPage();
   const errs = [];
@@ -178,7 +178,7 @@ const srv = http.createServer((q, r) => {
 
     /* О программе */
     await pg.click('#settingsTabs [data-tab="about"]');
-    ok((await pg.textContent('#appVersion')) === "v2.2.0", 'версия показана');
+    ok((await pg.textContent('#appVersion')) === "v2.3.0", 'версия показана');
     await pg.click('#wnOpenBtn');
     await pg.waitForSelector('#wnList h3', { timeout: 5000 });
     ok((await pg.locator('#wnList h3').count()) >= 2, 'что нового: записей ' + (await pg.locator('#wnList h3').count()));

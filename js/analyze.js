@@ -68,25 +68,28 @@
   };
 
   /* ---------- Звук: уровни по 50 мс ---------- */
-  AV.analyzeAudio = async function (file, dur) {
-    if (file.size > 800 * 1048576 || dur * 48000 * 2 * 4 > 480 * 1048576) throw new Error('Ролик слишком длинный для разбора звука на этом устройстве.');
-    var ac = null, buf;
+  AV.analyzeAudio = async function (file, dur, onProgress) {
+    var au = await AV.openAudio(file, dur);
+    if (!au.open) throw new Error(au.reason || 'В видео нет звука или его не удалось прочитать.');
+    var hop = 0.05, step = Math.max(1, Math.round(au.sr * hop)), n = Math.max(1, Math.ceil((dur + 1) * au.sr / step) + 1);
+    var sum = new Float64Array(n), cnt = new Float64Array(n), rd = au.open(0), blk, last = 0;
     try {
-      var ab = await file.arrayBuffer(), Ctx = window.AudioContext || window.webkitAudioContext;
-      ac = new Ctx();
-      buf = await new Promise(function (res, rej) { var p = ac.decodeAudioData(ab, res, rej); if (p && p.then) p.then(res, rej); });
-    } catch (e) { buf = null; }
-    if (ac && ac.close) { try { ac.close(); } catch (e2) { /* ничего */ } }
-    if (!buf || !buf.length) throw new Error('В видео нет звука или его не удалось прочитать.');
-    var hop = 0.05, step = Math.max(1, Math.round(buf.sampleRate * hop)), n = Math.ceil(buf.length / step), rms = new Float32Array(n);
-    var ch = [], c;
-    for (c = 0; c < buf.numberOfChannels; c++) ch.push(buf.getChannelData(c));
-    for (var i = 0; i < n; i++) {
-      var a = i * step, b = Math.min(buf.length, a + step), sum = 0;
-      for (c = 0; c < ch.length; c++) { var d = ch[c]; for (var j = a; j < b; j += 2) sum += d[j] * d[j]; }
-      rms[i] = Math.sqrt(sum / (((b - a) / 2) * ch.length || 1));
-    }
-    return { rms: rms, hop: hop, dur: buf.length / buf.sampleRate };
+      while ((blk = await rd.next())) {
+        for (var c = 0; c < blk.ch.length; c++) {
+          var d = blk.ch[c];
+          for (var j = 0; j < d.length; j += 2) {
+            var w = Math.floor((blk.pos + j) / step);
+            if (w >= n) break;
+            sum[w] += d[j] * d[j]; cnt[w]++;
+            if (w > last) last = w;
+          }
+        }
+        if (onProgress) onProgress(Math.min(1, (blk.pos / au.sr) / Math.max(dur, 0.1)));
+      }
+    } finally { rd.close(); }
+    var len = last + 1, rms = new Float32Array(len);
+    for (var i = 0; i < len; i++) rms[i] = cnt[i] ? Math.sqrt(sum[i] / cnt[i]) : 0;
+    return { rms: rms, hop: hop, dur: Math.min(dur, len * hop), kind: au.kind };
   };
   function threshold(rms) {
     var mx = 0; for (var i = 0; i < rms.length; i++) if (rms[i] > mx) mx = rms[i];

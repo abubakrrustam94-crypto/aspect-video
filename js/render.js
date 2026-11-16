@@ -54,7 +54,7 @@
   var orientCtx = null;
   /* Возвращает { src, sw, sh }: либо само видео, либо холст с повёрнутым кадром */
   AV.getOriented = function (video, rot, fh, fv) {
-    var vw = video.videoWidth, vh = video.videoHeight;
+    var vw = video.videoWidth || video.width, vh = video.videoHeight || video.height;
     if (!rot && !fh && !fv) return { src: video, sw: vw, sh: vh };
     var swap = rot === 90 || rot === 270;
     var ow = swap ? vh : vw, oh = swap ? vw : vh;

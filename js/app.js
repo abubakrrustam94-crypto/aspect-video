@@ -217,7 +217,7 @@
       }
     }
     if (!added) return;
-    $('#uploadZone').hidden = true;
+    $('#uploadZone').hidden = true; $('#resumeBar').hidden = true;
     $('#previewCard').hidden = false; $('#queueCard').hidden = false; $('#toolbar').hidden = false;
     renderQueue();
     if (first || cur < 0) await select(0);
@@ -636,7 +636,7 @@
     if (exVids.has(it.id)) return exVids.get(it.id).pr;
     var v = document.createElement('video'); v.className = 'vhide'; v.muted = true; v.playsInline = true; v.preload = 'auto';
     var pr = new Promise(function (resolve, reject) {
-      v.onloadeddata = function () { resolve(v); };
+      v.onloadeddata = function () { AV.primeVideo(v).then(function () { resolve(v); }, function () { resolve(v); }); };
       v.onerror = function () { reject(new Error('Не открылось видео «' + it.name + '».')); };
     });
     exVids.set(it.id, { pr: pr, el: v });
@@ -669,6 +669,7 @@
       mute: S.mute, vol: S.vol / 100, norm: S.norm, fadeIn: S.fadeIn, fadeOut: S.fadeOut,
       /* для записи в реальном времени (только один цельный отрезок) */
       video: video, file: group[0].file, start: segs[0].start, end: segs[0].end, r: segs[0].r,
+      fast: window.AV_NOFAST ? false : undefined, audioStream: window.AV_NOSTREAM ? false : undefined,   // только для проверок
       onProgress: function (f, t) { setProgress(title, f, t); }, signal: abort.signal
     };
     var res, single = segs.length === 1 && group.length === 1;
@@ -691,10 +692,14 @@
     return res;
   }
 
-  async function runQueue(all) {
+  async function runQueue(all, opts) {
+    opts = opts || {};
     if (busy || !item()) return;
-    var items = all ? Q.slice() : [item()], startCur = cur;
-    var groups = all && S.concat && items.length > 1 ? [items] : items.map(function (x) { return [x]; });
+    var items = opts.items || (all ? Q.slice() : [item()]), startCur = cur;
+    var groups = opts.groups || (all && S.concat && items.length > 1 ? [items] : items.map(function (x) { return [x]; }));
+    var skip = [];
+    if (opts.rec) { AV.session.adopt(opts.rec); skip = AV.session.doneSet(); }
+    else AV.session.begin(items, groups.map(function (g) { return g.map(function (x) { return items.indexOf(x); }); }));
     abort = new AbortController();
     var dir = null;
     if (S.toFolder && window.showDirectoryPicker) {
@@ -705,6 +710,7 @@
     var done = 0, lastErr = null;
     try {
       for (var i = 0; i < groups.length; i++) {
+        if (skip.indexOf(i) >= 0) { done++; continue; }
         var grp = groups[i], it = grp[0], qi = Q.indexOf(it);
         if (qi !== cur) { await select(qi); }
         video.pause();
@@ -718,6 +724,8 @@
         }
         var name = fileName(it, res.o, i, res.ext);
         if (grp.length > 1) name = name.replace(/(\.[^.]+)$/, '_склейка$1');
+        var opfs = res.opfsName || null;
+        if (!opfs) { var pb = await AV.persistBlob(res.blob, res.ext); if (pb) { res.blob = pb.blob; opfs = pb.name; } }   // готовое видео переживёт перезапуск и не держит память
         var saved = false;
         if (dir) {
           try {
@@ -726,7 +734,8 @@
           } catch (e2) { logError(e2, 'папка'); toast('В папку записать не удалось, файл в списке ниже.', true); }
         }
         ls.set(COUNT_KEY, String((+ls.get(COUNT_KEY) || 0) + 1));
-        addResult({ name: name, blob: res.blob, url: URL.createObjectURL(res.blob), o: res.o, warnings: res.warnings, ext: res.ext, fmt: res.fmt, saved: saved, streamed: res.streamed });
+        await AV.session.done(i, { name: name, opfs: opfs, ext: res.ext, fmt: res.fmt, type: res.blob.type, w: res.o.w, h: res.o.h, warnings: res.warnings, streamed: !!res.streamed });
+        addResult({ engine: res.engine, name: name, blob: res.blob, url: URL.createObjectURL(res.blob), o: res.o, warnings: res.warnings, ext: res.ext, fmt: res.fmt, saved: saved, streamed: res.streamed });
         done++;
       }
       if (done) toast(done > 1 ? 'Готово: ' + done + ' видео' : 'Готово');
@@ -735,6 +744,7 @@
       if (err2 && err2.aborted) toast('Сохранение отменено.');
       else { logError(err2, 'экспорт'); toast('Не получилось: ' + ((err2 && err2.message) || err2), true); }
     } finally {
+      AV.session.clear();                 // дошли до конца или отменили: журнал не нужен. После сбоя он остаётся.
       releaseExportVideos();
       lockOff(); showProgress(false); setBusy(false);
       if (startCur >= 0 && startCur < Q.length && startCur !== cur) await select(startCur); else { video.currentTime = item() ? item().start : 0; draw(); }
@@ -801,15 +811,69 @@
   $('#snapPng').addEventListener('click', function () { snap('png'); });
   $('#snapJpg').addEventListener('click', function () { snap('jpg'); });
 
+  /* ---------- продолжение после сбоя ---------- */
+  var resumeRec = null;
+  async function initResume() {
+    var m = await AV.session.load();
+    if (!m) return;
+    resumeRec = m;
+    $('#resumeText').textContent = 'Прошлое сохранение не завершилось: готово ' + m.done.filter(function (d) { return d.opfs; }).length + ' из ' + m.groups.length + '. Готовое останется, остальное сделаем заново.';
+    if (!Q.length) $('#resumeBar').hidden = false;
+  }
+  function pickFiles() {
+    return new Promise(function (resolve) {
+      var inp = $('#resumeFile'); inp.value = '';
+      inp.onchange = function () { resolve(Array.prototype.slice.call(inp.files)); };
+      inp.oncancel = function () { resolve([]); };
+      inp.click();
+    });
+  }
+  $('#resumeGo').addEventListener('click', async function () {
+    var m = resumeRec; if (!m || busy) return;
+    if (Q.length) { toast('Сначала уберите видео из списка.', true); return; }
+    var files = await AV.session.files(m), need = [];
+    files.forEach(function (f, i) { if (!f) need.push(i); });
+    if (need.length) {
+      toast('Копий видео нет. Выберите те же файлы: ' + need.map(function (i) { return m.items[i].name; }).join(', '));
+      var picked = await pickFiles();
+      need.forEach(function (i) {
+        var f = picked.filter(function (p) { return p.name === m.items[i].name && p.size === m.items[i].size; })[0];
+        if (f) files[i] = f;
+      });
+      if (files.some(function (f) { return !f; })) { toast('Не нашлось нужных файлов. Выберите те же видео.', true); return; }
+    }
+    await addFiles(files);
+    if (Q.length !== m.items.length) { toast('Не все видео открылись, продолжить нельзя.', true); return; }
+    m.items.forEach(function (sv, i) {
+      var it = Q[i];
+      it.start = Math.max(0, Math.min(sv.start, it.dur)); it.end = Math.max(it.start + 0.1, Math.min(sv.end, it.dur));
+      it.cuts = sv.cuts || null; it.caps = sv.caps || []; it.tap = sv.tap || null;
+    });
+    var okDone = [];
+    for (var k = 0; k < m.done.length; k++) {
+      var d = m.done[k], blob = d.opfs ? await AV.readOpfs(d.opfs, d.type) : null;
+      if (!blob) continue;                              // файла нет: эта группа пойдёт заново
+      okDone.push(d);
+      addResult({ name: d.name, blob: blob, url: URL.createObjectURL(blob), o: { w: d.w, h: d.h }, warnings: d.warnings || [], ext: d.ext, fmt: d.fmt, saved: false, streamed: !!d.streamed, engine: 'restored' });
+    }
+    m.done = okDone;
+    $('#resumeBar').hidden = true; resumeRec = null;
+    syncTrim(Q[0]); updateInfo(); updateEstimate(); renderCaps();
+    await runQueue(true, { rec: m, items: Q.slice(), groups: m.groups.map(function (g) { return g.map(function (ix) { return Q[ix]; }); }) });
+  });
+  $('#resumeDrop').addEventListener('click', async function () {
+    await AV.session.clear(); AV.cleanOpfs(); resumeRec = null; $('#resumeBar').hidden = true; toast('Журнал удалён.');
+  });
+
   /* ---------- старт ---------- */
   $('#folderCard').hidden = !window.showDirectoryPicker;
   if (!window.showDirectoryPicker && S.toFolder) set('toFolder', false, true);
   setTab(['frame', 'video', 'wm', 'export', 'components', 'about'].indexOf(ls.get(TAB_KEY)) >= 0 ? ls.get(TAB_KEY) : 'frame');
   syncUI();
-  AV.cleanOpfs();
+  initResume().then(function () { return AV.cleanOpfs(); }, function () { return AV.cleanOpfs(); });
   window.AVApp = {
     Q: function () { return Q; }, select: select, addFiles: addFiles, runQueue: runQueue, results: function () { return results; },
-    runFaces: function () { return runFaces(item()); }, runStab: function () { return runStab(item()); }, formatSupport: function () { return FS; }, outSize: function () { return outSize(item()); }, setTab: setTab
+    runFaces: function () { return runFaces(item()); }, runStab: function () { return runStab(item()); }, formatSupport: function () { return FS; }, outSize: function () { return outSize(item()); }, setTab: setTab, hasJournal: function () { return !!resumeRec; }
   };
   if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(function () { /* офлайн не включится */ });
 })();

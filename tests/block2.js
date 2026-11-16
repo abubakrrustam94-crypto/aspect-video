@@ -11,7 +11,7 @@ const srv = http.createServer((q, r) => {
   fs.readFile(p, (e, d) => { if (e) { r.writeHead(404); r.end(); return; } r.writeHead(200, { 'content-type': mime[path.extname(p)] || 'application/octet-stream' }); r.end(d); });
 }).listen(8767, async () => {
   const b = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
-  const ctx = await b.newContext({ viewport: { width: 430, height: 900 }, acceptDownloads: true });
+  const ctx = await b.newContext({ viewport: { width: 430, height: 900 }, acceptDownloads: true, locale: 'ru-RU' });
   await ctx.addInitScript(() => { try { localStorage.setItem('aspect-video-onboarded', '1'); } catch (e) { /* ничего */ } });
   const pg = await ctx.newPage();
   const errs = [];

@@ -62,6 +62,14 @@
   <div class="layout" id="editor">
     <!-- ============ Превью ============ -->
     <div class="col-main">
+    <section class="resume" id="resumeBar" aria-label="Продолжить прерванное сохранение" hidden>
+      <p id="resumeText"></p>
+      <div class="row" style="margin:0">
+        <button type="button" class="btn btn-main btn-sm" id="resumeGo">Продолжить</button>
+        <button type="button" class="btn btn-outlined btn-sm" id="resumeDrop">Забыть</button>
+      </div>
+      <input type="file" id="resumeFile" accept="video/*,.mp4,.mov,.m4v,.webm,.mkv" multiple hidden>
+    </section>
     <section class="upload-zone" id="uploadZone" aria-label="Загрузка видео">
       <div class="upload-ic" aria-hidden="true">🎞️</div>
       <button type="button" class="btn btn-main upload-btn" id="uploadBtn">Выберите видео</button>
@@ -465,6 +473,14 @@
             <span class="field-label">Цвет акцента</span>
             <div class="accent-row" id="accentRow" role="group" aria-label="Цвет акцента"></div>
           </div>
+          <div>
+            <span class="field-label">Язык</span>
+            <div class="seg" data-group="lang" role="group" aria-label="Язык">
+              <button type="button" data-val="auto">Авто</button>
+              <button type="button" data-val="ru">Русский</button>
+              <button type="button" data-val="en">English</button>
+            </div>
+          </div>
         </div>
       </section>
       <section class="card" id="cardAbout" data-tab="about">
@@ -486,7 +502,7 @@
         <details class="errlog" id="errLogBox">
           <summary>Журнал ошибок (<span id="errLogCount">0</span>)</summary>
           <p class="note" style="margin-top:8px">Хранится только на этом устройстве и никуда не отправляется. Если что-то сломалось, скопируй и пришли разработчику.</p>
-          <pre id="errLogText" tabindex="0"></pre>
+          <pre id="errLogText" data-i18n-skip tabindex="0"></pre>
           <div class="row"><button type="button" class="btn btn-outlined btn-sm" id="errLogCopy"><svg class="ic" aria-hidden="true"><use href="#i-copy"/></svg> Копировать</button><button type="button" class="btn btn-outlined btn-sm" id="errLogShare">Отправить отчёт</button><button type="button" class="btn btn-outlined btn-sm" id="errLogClear">Очистить</button></div>
         </details>
         <p class="note" id="resetNote" hidden>Будут удалены настройки, наборы, цвет акцента и тема. Нажми ещё раз, чтобы подтвердить.</p>
@@ -550,9 +566,14 @@
 <script src="js/render.js"></script>
 <script src="js/faces.js"></script>
 <script src="js/analyze.js"></script>
+<script src="js/decode.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/session.js"></script>
 <script src="js/export.js"></script>
 <script src="js/app.js"></script>
 <script src="js/extras.js"></script>
 <script src="js/about.js"></script>
+<script src="js/i18n-en.js"></script>
+<script src="js/i18n.js"></script>
 </body>
 </html>

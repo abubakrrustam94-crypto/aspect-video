@@ -28,6 +28,27 @@
   };
 
   /* Убирает недокачанные файлы прошлых экспортов */
+  AV.keepNames = AV.keepNames || [];
+  /* Сохраняет готовый файл в OPFS, чтобы он пережил перезапуск и не занимал память. null, если не вышло. */
+  AV.persistBlob = async function (blob, ext) {
+    if (!AV.hasOpfs()) return null;
+    try {
+      var q = navigator.storage.estimate ? await navigator.storage.estimate() : null;
+      if (q && q.quota && q.quota - (q.usage || 0) < blob.size * 1.3 + 50 * 1048576) return null;
+      var root = await navigator.storage.getDirectory(), name = EXPORT_PREFIX + Date.now() + '-p.' + ext;
+      var fh = await root.getFileHandle(name, { create: true }), w = await fh.createWritable();
+      await w.write(blob); await w.close();
+      var f = await fh.getFile();
+      return { name: name, blob: f.slice(0, f.size, blob.type) };
+    } catch (e) { return null; }
+  };
+  /* Достаёт файл из OPFS по имени (для восстановления готовых видео) */
+  AV.readOpfs = async function (name, type) {
+    try {
+      var root = await navigator.storage.getDirectory(), fh = await root.getFileHandle(name), f = await fh.getFile();
+      return f.slice(0, f.size, type);
+    } catch (e) { return null; }
+  };
   AV.cleanOpfs = async function (keepName) {
     if (!AV.hasOpfs()) return;
     try {
@@ -35,7 +56,7 @@
       var names = [];
       for await (var k of root.keys()) names.push(k);
       for (var i = 0; i < names.length; i++) {
-        if (names[i].indexOf(EXPORT_PREFIX) === 0 && names[i] !== keepName) await root.removeEntry(names[i]).catch(function () {});
+        if (names[i].indexOf(EXPORT_PREFIX) === 0 && names[i] !== keepName && (AV.keepNames || []).indexOf(names[i]) < 0) await root.removeEntry(names[i]).catch(function () {});
       }
     } catch (e) { /* не страшно */ }
   };
@@ -57,6 +78,13 @@
     });
   }
   AV.seekTo = seekTo;
+  /* Свежее скрытое видео может отдать чёрный кадр на нулевой секунде: один раз прыгаем рядом и возвращаемся */
+  AV.primeVideo = async function (video) {
+    var d = isFinite(video.duration) ? video.duration : 0;
+    if (d <= 0.2) return;
+    await seekTo(video, Math.min(0.1, d / 2));
+    await seekTo(video, 0);
+  };
 
   async function pickVideoConfig(W, H, fps, bitrate, fmt) {
     var area = W * H, list, i;
@@ -82,25 +110,6 @@
     try { var r = await AudioEncoder.isConfigSupported(ACFG[fmt || 'mp4']); return !!(r && r.supported); } catch (e) { return false; }
   };
 
-  /* Декодирует звук файла целиком. Слишком длинные ролики пропускаем: распакованный звук занимает много памяти. */
-  async function decodeFile(file, dur) {
-    if (file.size > 800 * 1048576) return { reason: 'Файл слишком большой, чтобы перенести звук.' };
-    if (dur * 48000 * 2 * 4 > 480 * 1048576) return { reason: 'Ролик слишком длинный, чтобы перенести звук без нехватки памяти.' };
-    var buf = null, ac = null;
-    try {
-      var ab = await file.arrayBuffer();
-      var Ctx = window.AudioContext || window.webkitAudioContext;
-      ac = new Ctx();
-      buf = await new Promise(function (res, rej) {
-        var p = ac.decodeAudioData(ab, res, rej);
-        if (p && p.then) p.then(res, rej);
-      });
-    } catch (e) { buf = null; }
-    if (ac && ac.close) { try { ac.close(); } catch (e2) { /* ничего */ } }
-    if (!buf || !buf.length) return { reason: 'В видео нет звука или его не удалось прочитать.' };
-    return { buf: buf };
-  }
-
   /* Куда писать: на диск (OPFS), если файл большой, иначе в память */
   async function openTarget(fmt, estBytes) {
     var M = fmt === 'webm' ? WebMMuxer : Mp4Muxer, mime = fmt === 'webm' ? 'video/webm' : 'video/mp4';
@@ -125,7 +134,7 @@
           chunkSize: 8 * 1048576
         });
         return {
-          target: target, stream: true, fastStart: false,
+          target: target, stream: true, fastStart: false, name: name,
           finish: async function () {
             await chain; await w.close();
             var f = await fh.getFile();
@@ -154,6 +163,7 @@
      o: { format, segs:[{file, start, end, dur, r, load()→Promise<video>}], W, H, fps, bitrate, speed, mute, vol, norm,
           fadeIn, fadeOut, onProgress(frac, text), signal }
      Несколько отрезков склеиваются в один ролик (очередь, вырезанные паузы). Время кадров считается по всему ролику. */
+  var liveSrcs = [];
   AV.exportMedia = async function (o) {
     var fmt = o.format || 'mp4', W = o.W, H = o.H, fps = o.fps, speed = o.speed || 1, warnings = [];
     var segs = o.segs, ns = segs.map(function (g) { return Math.max(1, Math.round(((g.end - g.start) / speed) * fps)); });
@@ -167,7 +177,14 @@
       var frac = i / total, el = (performance.now() - t0) / 1000, eta = frac > 0.02 ? Math.round((el / frac) * (1 - frac)) : null;
       o.onProgress(frac * scale, text + (eta !== null ? ' · ещё ~' + eta + ' с' : ''));
     }
-    var vid;
+    liveSrcs.forEach(function (x) { try { x.close(); } catch (e) { /* ничего */ } }); liveSrcs = [];
+    var vid, srcs = new Map(), engines = {};
+    async function frames(g, v) {
+      var key = g.file;
+      if (!srcs.has(key)) { var fsrc = await AV.frameSource(g.file, v, { fast: o.fast }); srcs.set(key, fsrc); liveSrcs.push(fsrc); }
+      return srcs.get(key);
+    }
+    function closeSrcs() { srcs.forEach(function (x) { engines[x.kind] = 1; x.close(); }); srcs.clear(); }
 
     if (fmt === 'gif') {
       if (!AV.canGif()) throw new Error('Не загрузился модуль GIF. Обновите страницу.');
@@ -176,12 +193,11 @@
       for (var si = 0; si < segs.length; si++) {
         vid = await segs[si].load();
         vid.pause();
-        var rg = rOf(segs[si]);
+        var fsg = await frames(segs[si], vid), rg = rOf(segs[si]);
         for (var k = 0; k < ns[si]; k++) {
           if (o.signal.aborted) throw abortErr();
           var tSrc = Math.min(segs[si].start + (k / fps) * speed, Math.max(segs[si].start, segs[si].end - 0.001));
-          await seekTo(vid, tSrc);
-          AV.renderAt(ctx, W, H, vid, rg, tSrc, idx / fps);
+          AV.renderAt(ctx, W, H, await fsg.at(tSrc), rg, tSrc, idx / fps);
           var px = ctx.getImageData(0, 0, W, H).data;
           var pal = window.gifenc.quantize(px, 256, { format: 'rgb444' });
           gif.writeFrame(window.gifenc.applyPalette(px, pal, 'rgb444'), W, H, { palette: pal, delay: Math.round(1000 / fps) });
@@ -191,7 +207,8 @@
         }
       }
       gif.finish();
-      return { blob: new Blob([gif.bytes()], { type: 'image/gif' }), ext: 'gif', warnings: warnings, streamed: false };
+      closeSrcs();
+      return { blob: new Blob([gif.bytes()], { type: 'image/gif' }), ext: 'gif', warnings: warnings, streamed: false, engine: Object.keys(engines).join('+') };
     }
 
     var vcfg = await pickVideoConfig(W, H, fps, o.bitrate, fmt);
@@ -199,10 +216,14 @@
     var M = fmt === 'webm' ? WebMMuxer : Mp4Muxer;
 
     /* звук: пробуем декодировать файлы; если не вышло ни у одного — без звука */
-    var audioOn = false, cache = { file: null, res: null };
-    async function getDecoded(g) {
-      if (cache.file !== g.file) { cache.file = g.file; cache.res = null; cache.res = await decodeFile(g.file, g.dur || (g.end - g.start)); }
-      return cache.res;
+    var audioOn = false, auCache = new Map();
+    async function getAudio(g) {                       // источник звука файла; открываем один раз
+      var key = g.file;
+      if (!auCache.has(key)) {
+        if (auCache.size >= 3) { var oldest = auCache.keys().next().value; auCache.delete(oldest); }   // не держим много распакованных файлов
+        auCache.set(key, await AV.openAudio(g.file, g.dur || (g.end - g.start), { stream: o.audioStream }));
+      }
+      return auCache.get(key);
     }
     if (!o.mute) {
       o.onProgress(0, 'Подготовка звука…');
@@ -213,8 +234,8 @@
           var key = segs[q].file.name + ':' + segs[q].file.size;
           if (tried[key]) continue;
           tried[key] = 1;
-          var pr = await getDecoded(segs[q]);
-          if (pr.buf) audioOn = true; else reasons.push(pr.reason);
+          var pr = await getAudio(segs[q]);
+          if (pr.open) { audioOn = true; engines['audio-' + pr.kind] = 1; } else reasons.push(pr.reason);
           if (o.signal.aborted) throw abortErr();
         }
         if (!audioOn) warnings.push((reasons[0] || 'Звук не удалось прочитать.') + ' Видео сохранено без звука.');
@@ -252,17 +273,16 @@
         var g = segs[s2], rr = rOf(g);
         vid = await g.load();
         vid.pause();
-        var feeder = null;
+        var fsv = await frames(g, vid), feeder = null;
         if (audioOn) {
-          var dr = await getDecoded(g);
-          feeder = makeSegAudio(aenc, function () { return aerr; }, dr.buf || null, g, ns[s2] / fps, sampleOff, o, outDur, speed);
+          var dr = await getAudio(g);
+          feeder = await makeSegAudio(aenc, function () { return aerr; }, dr && dr.open ? dr : null, g, ns[s2] / fps, sampleOff, o, outDur, speed);
         }
         for (var i = 0; i < ns[s2]; i++) {
           if (o.signal.aborted) throw abortErr();
           if (encErr) throw encErr;
           var ts = Math.min(g.start + (i / fps) * speed, Math.max(g.start, g.end - 0.001));
-          await seekTo(vid, ts);
-          AV.renderAt(ctx, W, H, vid, rr, ts, fi / fps);
+          AV.renderAt(ctx, W, H, await fsv.at(ts), rr, ts, fi / fps);
           var init = { timestamp: Math.round((fi * 1e6) / fps), duration: Math.round(1e6 / fps) }, frame;
           try { frame = new VideoFrame(canvas, Object.assign({ colorSpace: cs }, init)); } catch (e0) { frame = new VideoFrame(canvas, init); }
           venc.encode(frame, { keyFrame: fi % keyEvery === 0 });
@@ -282,8 +302,10 @@
       muxer.finalize();
       var blob = await out.finish();
       ok = true;
-      return { blob: blob, ext: fmt, warnings: warnings, streamed: out.stream };
+      closeSrcs();
+      return { blob: blob, ext: fmt, warnings: warnings, streamed: out.stream, opfsName: out.name, engine: Object.keys(engines).join('+') };
     } finally {
+      closeSrcs();
       if (!ok) {
         try { if (venc.state !== 'closed') venc.close(); } catch (e4) { /* ничего */ }
         try { if (aenc && aenc.state !== 'closed') aenc.close(); } catch (e5) { /* ничего */ }
@@ -293,19 +315,41 @@
   };
 
   /* Звук одного отрезка: вырезаем, меняем скорость, громкость, затухание, приводим к 48 кГц стерео, кодируем кусками.
-     buf = null → тишина нужной длины. Возвращает новое смещение в сэмплах. */
-  function makeSegAudio(aenc, getErr, buf, g, segOut, off, o, outDur, speed) {
-    var SR = 48000, CH = 4096, len = Math.max(1, Math.round(segOut * SR));
-    var chans = [], sr = SR, s0 = 0, s1 = 0, gain = Math.max(0, o.vol);
-    if (buf) {
-      sr = buf.sampleRate;
-      for (var c = 0; c < buf.numberOfChannels; c++) chans.push(buf.getChannelData(c));
-      s0 = Math.max(0, Math.floor(g.start * sr)); s1 = Math.min(buf.length, Math.floor(g.end * sr));
-      if (o.norm) {                                    // подгоняем самый громкий пик под ~ -0,4 дБ
-        var peak = 0;
-        for (var cc = 0; cc < chans.length; cc++) { var d = chans[cc]; for (var p = s0; p < s1; p += 2) { var v = d[p] < 0 ? -d[p] : d[p]; if (v > peak) peak = v; } }
-        if (peak > 0.001) gain *= Math.min(8, 0.95 / peak);
+     au = null → тишина нужной длины. Звук читается подряд небольшими блоками, поэтому длинные ролики не требуют памяти. */
+  async function makeSegAudio(aenc, getErr, au, g, segOut, off, o, outDur, speed) {
+    var SR = 48000, CH = 4096, len = Math.max(1, Math.round(segOut * SR)), gain = Math.max(0, o.vol);
+    var sr = au ? au.sr : SR, s0 = Math.max(0, Math.floor(g.start * sr)), s1 = Math.floor(g.end * sr);
+    if (au && o.norm) {                                // первый проход: ищем самый громкий пик, чтобы подогнать под ~ -0,4 дБ
+      var rd = au.open(g.start), peak = 0, blk;
+      try {
+        while ((blk = await rd.next())) {
+          if (o.signal.aborted) throw abortErr();
+          if (blk.pos >= s1) break;
+          for (var cc = 0; cc < blk.ch.length; cc++) {
+            var d = blk.ch[cc], from = Math.max(0, s0 - blk.pos), to = Math.min(d.length, s1 - blk.pos);
+            for (var p = from; p < to; p += 2) { var v = d[p] < 0 ? -d[p] : d[p]; if (v > peak) peak = v; }
+          }
+        }
+      } finally { rd.close(); }
+      if (peak > 0.001) gain *= Math.min(8, 0.95 / peak);
+    }
+    var reader = au ? au.open(g.start) : null, blocks = [], bi = 0, rend = false;
+    async function ensure(upTo) {                      // подгружаем блоки, пока не покроем сэмпл upTo
+      while (!rend) {
+        var last = blocks[blocks.length - 1];
+        if (last && last.pos + last.ch[0].length > upTo) return;
+        var b = await reader.next();
+        if (!b) { rend = true; return; }
+        blocks.push({ pos: b.pos, len: b.ch[0].length, ch: b.ch });
       }
+    }
+    function get(c, i) {
+      for (var k = Math.max(0, bi - 1); k < blocks.length; k++) {
+        var b = blocks[k];
+        if (i < b.pos) return 0;
+        if (i < b.pos + b.len) { bi = k; return b.ch[Math.min(c, b.ch.length - 1)][i - b.pos]; }
+      }
+      return 0;
     }
     var step = (sr / SR) * speed, done = 0;            // step: сколько входных сэмплов на один выходной
     return {
@@ -317,17 +361,21 @@
           if (o.signal.aborted) throw abortErr();
           if (getErr()) throw getErr();
           var j0 = done, n = Math.min(CH, len - j0), data = new Float32Array(n * 2);
-          for (var ch = 0; ch < 2; ch++) {
-            var src = chans.length ? chans[Math.min(ch, chans.length - 1)] : null, base = ch * n;
-            if (!src) continue;
-            for (var k = 0; k < n; k++) {
-              var j = j0 + k, gg = gain, tt = (off + j) / SR;
-              if (o.fadeIn > 0 && tt < o.fadeIn) gg *= tt / o.fadeIn;
-              if (o.fadeOut > 0 && outDur - tt < o.fadeOut) gg *= Math.max(0, (outDur - tt) / o.fadeOut);
-              var pos = s0 + j * step, i0 = Math.floor(pos), val = 0;
-              if (i0 < src.length) { var a = src[i0], b = src[Math.min(i0 + 1, src.length - 1)]; val = a + (b - a) * (pos - i0); }
-              var sv = val * gg;
-              data[base + k] = sv > 1 ? 1 : sv < -1 ? -1 : sv;
+          if (reader) {
+            var posA = s0 + j0 * step;
+            while (blocks.length > 2 && blocks[0].pos + blocks[0].len < posA - 4) { blocks.shift(); bi = Math.max(0, bi - 1); }
+            await ensure(Math.ceil(s0 + (j0 + n) * step) + 2);
+            for (var ch = 0; ch < 2; ch++) {
+              var base = ch * n;
+              bi = 0;                                  // каждый канал читаем с начала окна
+              for (var k = 0; k < n; k++) {
+                var j = j0 + k, gg = gain, tt = (off + j) / SR;
+                if (o.fadeIn > 0 && tt < o.fadeIn) gg *= tt / o.fadeIn;
+                if (o.fadeOut > 0 && outDur - tt < o.fadeOut) gg *= Math.max(0, (outDur - tt) / o.fadeOut);
+                var pos = s0 + j * step, i0 = Math.floor(pos), a = get(ch, i0), b = get(ch, i0 + 1);
+                var sv = (a + (b - a) * (pos - i0)) * gg;
+                data[base + k] = sv > 1 ? 1 : sv < -1 ? -1 : sv;
+              }
             }
           }
           var ad = new AudioData({ format: 'f32-planar', sampleRate: SR, numberOfFrames: n, numberOfChannels: 2, timestamp: Math.round(((off + j0) / SR) * 1e6), data: data });
@@ -336,6 +384,7 @@
           done += n;
           while (aenc.encodeQueueSize > 20) await wait(2);
         }
+        if (done >= len && reader) { reader.close(); reader = null; }
       }
     };
   }
