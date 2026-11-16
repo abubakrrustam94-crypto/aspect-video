@@ -172,24 +172,60 @@
     files: ['js/faces-worker.js', 'vendor/tfjs/runtime.js', 'vendor/tfjs/tfjs-backend-wasm-simd.wasm', 'vendor/tfjs/tfjs-backend-wasm.wasm', 'vendor/blazeface/blazeface-back.json', 'vendor/blazeface/blazeface-back.bin']
   }];
   var abs = function (p) { return new URL(p, location.href).href; };
+  /* Компоненты лежат в файловой системе сайта (OPFS, папка aspect-video-components), а не в кэше сайта: их не сносит обновление версии.
+     Service worker отдаёт их оттуда. Где OPFS нет (старый Safari), остаётся кэш сайта. */
+  var COMP_DIR = 'aspect-video-components';
+  var HAS_OPFS = !!(navigator.storage && navigator.storage.getDirectory && window.FileSystemFileHandle && FileSystemFileHandle.prototype.createWritable);
+  var fname = function (p) { return encodeURIComponent(p); };
+  async function cdir(create) { return (await navigator.storage.getDirectory()).getDirectoryHandle(COMP_DIR, { create: !!create }); }
+  async function opfsSize(p) { try { return (await (await (await cdir()).getFileHandle(fname(p))).getFile()).size; } catch (e) { return -1; } }
+  async function opfsDel(p) { try { await (await cdir()).removeEntry(fname(p)); } catch (e) { /* файла нет */ } }
   async function swCaches() {
     if (!('caches' in window)) return [];
     var keys = (await caches.keys()).filter(function (k) { return /^aspect-video-v\d+/.test(k); }).sort();
     return keys.length ? [await caches.open(keys[keys.length - 1])] : [];
   }
-  async function compState(c) {
-    var cs = await swCaches(); if (!cs.length) return 'none';
-    var have = 0;
-    for (var i = 0; i < c.files.length; i++) { if (await cs[0].match(abs(c.files[i]))) have++; }
-    return have >= c.files.length - 1 ? 'ok' : have ? 'part' : 'none';   // один из двух wasm-файлов нужен только на части устройств
+  /* 'ok' | 'part' | 'none' и где лежит: 'opfs' | 'cache' */
+  async function compInfo(c) {
+    var have = 0, inCache = 0, i;
+    if (HAS_OPFS) for (i = 0; i < c.files.length; i++) if ((await opfsSize(c.files[i])) > 0) have++;
+    var cs = await swCaches();
+    if (cs.length) for (i = 0; i < c.files.length; i++) if (await cs[0].match(abs(c.files[i]), { ignoreSearch: true })) inCache++;
+    var best = Math.max(have, inCache), need = c.files.length - 1;   // один из двух wasm-файлов нужен только на части устройств
+    return { st: best >= need ? 'ok' : best ? 'part' : 'none', where: have >= inCache ? 'opfs' : 'cache', inCache: inCache, have: have };
+  }
+  async function compState(c) { return (await compInfo(c)).st; }
+  /* Раньше файлы клали в кэш сайта: переносим в OPFS, чтобы они пережили обновление */
+  async function migrateComps() {
+    if (!HAS_OPFS) return;
+    try {
+      var cs = await swCaches(); if (!cs.length) return;
+      for (var k = 0; k < COMPS.length; k++) for (var j = 0; j < COMPS[k].files.length; j++) {
+        var f = COMPS[k].files[j];
+        if ((await opfsSize(f)) > 0) continue;
+        var hit = await cs[0].match(abs(f), { ignoreSearch: true });
+        if (hit && hit.ok) { await writeOpfs(f, hit); await cs[0].delete(abs(f), { ignoreSearch: true }); }
+      }
+    } catch (e) { /* перенос необязателен */ }
+  }
+  async function writeOpfs(p, res) {
+    var fh = await (await cdir(true)).getFileHandle(fname(p), { create: true }), w = await fh.createWritable(), got = 0;
+    try {
+      if (res.body && res.body.getReader) { var rd = res.body.getReader(); for (;;) { var r = await rd.read(); if (r.done) break; await w.write(r.value); got += r.value.length; } }
+      else { var b = await res.blob(); await w.write(b); got = b.size; }
+      if (!got) throw new Error('пустой файл ' + p);
+      await w.close();
+    } catch (e) { try { await w.abort(); } catch (e2) { /* уже закрыт */ } await opfsDel(p); throw e; }   // кусков не оставляем
+    return got;
   }
   async function drawComps() {
     var box = $('#compList'), mine = (drawComps.seq = (drawComps.seq || 0) + 1), frag = document.createDocumentFragment();
+    if (!drawComps.migrated) { drawComps.migrated = true; await migrateComps(); }
     for (var i = 0; i < COMPS.length; i++) {
-      var c = COMPS[i], st = await compState(c);
+      var c = COMPS[i], inf = await compInfo(c), st = inf.st;
       var row = el('div', 'comp-row'), info = el('div', 'comp-info');
       info.append(el('b', '', c.name + ' · ' + c.size), el('small', '', c.desc),
-        el('small', 'comp-st' + (st === 'ok' ? ' ok' : ''), st === 'ok' ? 'Скачано: работает без интернета' : st === 'part' ? 'Скачано не полностью' : 'Не скачано: подгрузится при первом использовании'));
+        el('small', 'comp-st' + (st === 'ok' ? ' ok' : ''), st === 'ok' ? 'Скачано: работает без интернета' + (inf.where === 'opfs' ? ' (в памяти сайта, не в кэше)' : '') : st === 'part' ? 'Скачано не полностью' : 'Не скачано: подгрузится при первом использовании'));
       var acts = el('div', 'res-acts');
       var dl = el('button', 'btn btn-tonal btn-sm', st === 'ok' ? 'Скачать заново' : 'Скачать'); dl.type = 'button';
       dl.addEventListener('click', (function (cc, btn) { return async function () { btn.disabled = true; btn.textContent = 'Скачиваю…'; await downloadComp(cc); drawComps(); }; })(c, dl));
@@ -201,15 +237,17 @@
   }
   async function downloadComp(c) {
     try {
-      var cs = await swCaches();
-      if (!cs.length) { toast('Сайт ещё не установлен для офлайна. Открой его по https и подожди минуту.', true); return; }
-      var ok = 0;
+      var ok = 0, cs = HAS_OPFS ? [] : await swCaches();
+      if (!HAS_OPFS && !cs.length) { toast('Сайт ещё не установлен для офлайна. Открой его по https и подожди минуту.', true); return; }
       for (var i = 0; i < c.files.length; i++) {
         try {
           var r = await fetch(abs(c.files[i]), { cache: 'reload' });
-          if (r.ok) { await cs[0].put(abs(c.files[i]), r); ok++; }
+          if (!r.ok) continue;
+          if (HAS_OPFS) await writeOpfs(c.files[i], r); else await cs[0].put(abs(c.files[i]), r);
+          ok++;
         } catch (e) { /* один из wasm может отсутствовать, это не ошибка */ }
       }
+      if (HAS_OPFS && ok && navigator.storage.persist) { try { await navigator.storage.persist(); } catch (e3) { /* браузер решит сам */ } }
       toast(ok >= c.files.length - 1 ? 'Скачано: ' + c.name : 'Скачано не всё. Проверь соединение и повтори.', ok < c.files.length - 1);
     } catch (e) { logError(e, 'компоненты'); toast('Не получилось скачать: ' + (e && e.message), true); }
     drawStorage();
@@ -217,10 +255,13 @@
   async function removeComp(c) {
     var cs = await swCaches();
     var sweep = async function () {
-      for (var i = 0; i < cs.length; i++) for (var j = 0; j < c.files.length; j++) await cs[i].delete(abs(c.files[j]), { ignoreSearch: true });
+      for (var j = 0; j < c.files.length; j++) {
+        if (HAS_OPFS) await opfsDel(c.files[j]);
+        for (var i = 0; i < cs.length; i++) await cs[i].delete(abs(c.files[j]), { ignoreSearch: true });
+      }
     };
     await sweep();
-    await new Promise(function (r) { setTimeout(r, 700); });   // файл, который грузился в этот момент, мог лечь в кэш уже после удаления
+    await new Promise(function (r) { setTimeout(r, 700); });   // файл, который грузился в этот момент, мог лечь в хранилище уже после удаления
     await sweep();
   }
 
@@ -245,6 +286,11 @@
       var cs = await swCaches(), nf = 0;
       if (cs.length) nf = (await cs[0].keys()).length;
       add('Файлов сайта в кэше', cs.length ? String(nf) : 'кэша пока нет');
+      if (HAS_OPFS) {
+        var cn = 0, cb = 0;
+        try { var d = await cdir(); for await (var ent of d.values()) { if (ent.kind === 'file') { cn++; cb += (await ent.getFile()).size; } } } catch (e4) { /* папки ещё нет */ }
+        add('Компоненты в памяти сайта', cn ? cn + ' шт., ' + fmtBytes(cb) : 'нет');
+      }
     } catch (e) { out.textContent = 'Не удалось получить данные.'; }
   }
   $('#storageRefresh').addEventListener('click', drawStorage);

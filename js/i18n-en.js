@@ -541,4 +541,10 @@ window.I18N_EN = {
 "Исправлено: после обновления часть файлов могла остаться от старой версии, и появлялись ошибки вроде «PIN_KEY is not defined» или «audioSupport is not a function». Теперь приложение замечает несовпадение, само очищает кэш и перезагружается.": "Fixed: after an update some files could remain from the old version, causing errors like “PIN_KEY is not defined” or “audioSupport is not a function”. The app now notices the mismatch, clears its cache and reloads itself.",
 "Офлайн-кэш ставится целиком или не ставится вовсе, файлы берутся свежими.": "The offline cache is installed completely or not at all, and files are fetched fresh.",
 "Обновлено окно «Что нового»: шапка, лента версий со сворачиванием старых и нижняя панель на телефоне.": "The “What's new” window was redesigned: a header, a version timeline with older versions collapsed, and a bottom sheet on phones.",
+"Компоненты в памяти сайта": "Components in site storage",
+"Компоненты («Поиск лиц») теперь хранятся в файловой системе сайта, а не в кэше. Обновление версии их больше не стирает, а на вкладке «Место на устройстве» видно, сколько они занимают.": "Components (“Face search”) are now stored in the site's file system instead of the cache. Updating the version no longer erases them, and the “Storage” tab shows how much they take.",
+"Скачанное раньше в кэш переносится автоматически, заново качать не нужно.": "Components downloaded earlier into the cache are moved automatically; no need to download them again.",
+"После скачивания сайт просит браузер не чистить свои данные сам.": "After downloading, the site asks the browser not to clear its data on its own.",
+" (в памяти сайта, не в кэше)": " (in site storage, not in the cache)",
+"Компоненты в памяти сайта": "Components in site storage",
 };
