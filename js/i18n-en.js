@@ -534,5 +534,11 @@ window.I18N_EN = {
 "«О программе»: версия, «Что нового», «Как это работает», проверка скорости с замером кодирования, журнал ошибок, «Сообщить о проблеме», статус работы без интернета, счётчик сохранённых видео.": "About: version, What's new, How it works, a speed test with an encoding benchmark, error log, Report a problem, offline status, saved-videos counter.",
 "Метаданные исходника (GPS, модель телефона) в результат не попадают. Цвет записывается как sRGB (BT.709).": "Source metadata (GPS, phone model) does not carry over. Color is written as sRGB (BT.709).",
 "Меняет формат видео без обрезки: размытие, цвет или обрезка, фрагмент, размер, частота кадров, битрейт.": "Changes a video's aspect ratio without cropping: blur, color or crop, fragment, size, frame rate, bitrate.",
-"Сохранение в MP4 (H.264 + AAC) без загрузки на сервер, запасной режим записи в реальном времени.": "Saving to MP4 (H.264 + AAC) with no server upload, plus a real-time recording fallback."
+"Сохранение в MP4 (H.264 + AAC) без загрузки на сервер, запасной режим записи в реальном времени.": "Saving to MP4 (H.264 + AAC) with no server upload, plus a real-time recording fallback.",
+"Сейчас у тебя": "You are on",
+"Новое": "New",
+"Защита от смешанных версий": "Protection from mixed versions",
+"Исправлено: после обновления часть файлов могла остаться от старой версии, и появлялись ошибки вроде «PIN_KEY is not defined» или «audioSupport is not a function». Теперь приложение замечает несовпадение, само очищает кэш и перезагружается.": "Fixed: after an update some files could remain from the old version, causing errors like “PIN_KEY is not defined” or “audioSupport is not a function”. The app now notices the mismatch, clears its cache and reloads itself.",
+"Офлайн-кэш ставится целиком или не ставится вовсе, файлы берутся свежими.": "The offline cache is installed completely or not at all, and files are fetched fresh.",
+"Обновлено окно «Что нового»: шапка, лента версий со сворачиванием старых и нижняя панель на телефоне.": "The “What's new” window was redesigned: a header, a version timeline with older versions collapsed, and a bottom sheet on phones.",
 };

@@ -173,15 +173,15 @@ const srv = http.createServer((q, r) => {
     ok(/Скачано: работает/.test(await pg.textContent('#compList')), 'модель лиц скачана в кэш');
     await pg.click('#compList .comp-row .danger');
     await pg.waitForFunction(() => /Не скачано/.test(document.querySelector('#compList').textContent), null, { timeout: 8000 }).catch(() => {});
-    ok(/Не скачано/.test(await pg.textContent('#compList')), 'модель лиц удалена из кэша');
+    { const t = await pg.textContent('#compList'); ok(/Не скачано/.test(t), 'модель лиц удалена из кэша' + (/Не скачано/.test(t) ? '' : ' :: ' + t.replace(/\s+/g, ' ').slice(0, 300))); }
     ok((await pg.locator('#storageOut .sp-row').count()) >= 2, 'место на устройстве показано');
 
     /* О программе */
     await pg.click('#settingsTabs [data-tab="about"]');
-    ok((await pg.textContent('#appVersion')) === "v2.3.1", 'версия показана');
+    ok((await pg.textContent('#appVersion')) === "v2.2.2", 'версия показана');
     await pg.click('#wnOpenBtn');
-    await pg.waitForSelector('#wnList h3', { timeout: 5000 });
-    ok((await pg.locator('#wnList h3').count()) >= 2, 'что нового: записей ' + (await pg.locator('#wnList h3').count()));
+    await pg.waitForSelector('#wnList .wn-rel', { timeout: 5000 });
+    ok((await pg.locator('#wnList .wn-rel').count()) >= 2, 'что нового: записей ' + (await pg.locator('#wnList .wn-rel').count()));
     await pg.click('#wnClose');
     await pg.click('#howBtn'); ok((await pg.locator('#howList .how-item').count()) === 4, 'как это работает: 4 пункта'); await pg.click('#howClose');
     await pg.click('#speedBtn');

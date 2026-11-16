@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, viewport-fit=cover">
-<meta name="av-version" content="2.3.1">
+<meta name="av-version" content="2.2.2">
 <meta name="theme-color" content="#0f0f14">
 <meta name="description" content="Меняет формат видео без обрезки: Reels, Shorts, пост 4:5, YouTube. Всё работает в браузере, видео никуда не загружается.">
 <title>Aspect Studio Video</title>
@@ -547,7 +547,10 @@
 </div>
 <div class="modal onb" id="whatsnew" role="dialog" aria-modal="true" aria-labelledby="wnTitle" hidden>
   <div class="onb-card wn-card">
-    <h2 id="wnTitle">Что нового</h2>
+    <div class="wn-top">
+      <span class="wn-ic" aria-hidden="true"><svg class="ic"><use href="#i-sparkles"/></svg></span>
+      <div><h2 id="wnTitle">Что нового</h2><p class="wn-sub" id="wnSub"></p></div>
+    </div>
     <div class="wn-list" id="wnList" tabindex="0"></div>
     <div class="onb-actions"><button type="button" class="btn btn-main" id="wnClose">Понятно</button></div>
   </div>

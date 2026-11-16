@@ -26,11 +26,18 @@
       try { await lazyLoad('changelog-data'); } catch (e) { box.textContent = 'Не удалось загрузить список изменений. Проверь соединение.'; return; }
     }
     box.replaceChildren();
-    CHANGELOG.forEach(function (e) {
-      var h = el('h3', '', 'v' + e.v + ' — ' + e.t), ul = el('ul');
-      e.items.forEach(function (x) { ul.append(el('li', '', x)); });
-      box.append(h, ul);
+    $('#wnSub').textContent = 'Сейчас у тебя v' + APP_VERSION;
+    CHANGELOG.forEach(function (e, idx) {
+      var cur = idx === 0, node = el(cur ? 'section' : 'details', 'wn-rel' + (cur ? ' cur' : ''));
+      var head = el(cur ? 'header' : 'summary', 'wn-head');
+      var ver = el('span', 'wn-ver', 'v' + e.v), ttl = el('span', 'wn-ttl', e.t);
+      head.append(ver, ttl);
+      if (cur) head.append(el('span', 'wn-badge', 'Новое'));
+      var ul = el('ul', 'wn-items');
+      e.items.forEach(function (x) { ul.append(el('li', /^Исправлено/.test(x) ? 'fix' : '', x)); });
+      node.append(head, ul); box.append(node);
     });
+    box.scrollTop = 0;
   }
   var wn = modal($('#whatsnew'), $('#wnClose'), function () { ls.set(SEEN_KEY, APP_VERSION); });
   function wnOpen() { wn.open(); return wnRender(); }
@@ -40,7 +47,7 @@
     var num = function (v) { return String(v || '0').split('.').map(Number); };
     var newer = function (a, b) { var x = num(a), y = num(b); for (var i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
     if (!seen) { ls.set(SEEN_KEY, APP_VERSION); return; }
-    if (newer(APP_VERSION, seen)) setTimeout(wnOpen, 900);
+    if (seen !== APP_VERSION) setTimeout(wnOpen, 900);   // версия сменилась (в том числе номером ниже): покажем один раз
   })();
 
   /* ---------- Как это работает ---------- */

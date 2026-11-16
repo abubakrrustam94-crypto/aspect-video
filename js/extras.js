@@ -184,7 +184,7 @@
     return have >= c.files.length - 1 ? 'ok' : have ? 'part' : 'none';   // один из двух wasm-файлов нужен только на части устройств
   }
   async function drawComps() {
-    var box = $('#compList'); box.replaceChildren();
+    var box = $('#compList'), mine = (drawComps.seq = (drawComps.seq || 0) + 1), frag = document.createDocumentFragment();
     for (var i = 0; i < COMPS.length; i++) {
       var c = COMPS[i], st = await compState(c);
       var row = el('div', 'comp-row'), info = el('div', 'comp-info');
@@ -195,8 +195,9 @@
       dl.addEventListener('click', (function (cc, btn) { return async function () { btn.disabled = true; btn.textContent = 'Скачиваю…'; await downloadComp(cc); drawComps(); }; })(c, dl));
       var rm = el('button', 'btn btn-outlined btn-sm danger', 'Удалить'); rm.type = 'button'; rm.disabled = st === 'none';
       rm.addEventListener('click', (function (cc) { return async function () { await removeComp(cc); toast('Удалено: ' + cc.name); drawComps(); drawStorage(); }; })(c));
-      acts.append(dl, rm); row.append(info, acts); box.appendChild(row);
+      acts.append(dl, rm); row.append(info, acts); frag.appendChild(row);
     }
+    if (mine === drawComps.seq) box.replaceChildren(frag);   // поздний старый вызов не затирает свежий
   }
   async function downloadComp(c) {
     try {
@@ -215,7 +216,12 @@
   }
   async function removeComp(c) {
     var cs = await swCaches();
-    for (var i = 0; i < cs.length; i++) for (var j = 0; j < c.files.length; j++) await cs[i].delete(abs(c.files[j]));
+    var sweep = async function () {
+      for (var i = 0; i < cs.length; i++) for (var j = 0; j < c.files.length; j++) await cs[i].delete(abs(c.files[j]), { ignoreSearch: true });
+    };
+    await sweep();
+    await new Promise(function (r) { setTimeout(r, 700); });   // файл, который грузился в этот момент, мог лечь в кэш уже после удаления
+    await sweep();
   }
 
   /* ---------- Место на устройстве ---------- */

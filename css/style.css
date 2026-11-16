@@ -233,6 +233,37 @@ body.progress-on .toast { bottom: calc(86px + env(safe-area-inset-bottom) + 190p
 .wn-list h3:first-child { margin-top: 0; }
 .wn-list ul { margin: 0; padding-left: 20px; line-height: 1.45; color: var(--md-sys-color-on-surface-variant); font-size: .9rem; }
 .wn-list li { margin-bottom: 4px; }
+/* «Что нового»: шапка, лента версий, нижняя панель на телефоне */
+.wn-top { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+.wn-top h2 { margin: 0; text-align: left; font-size: 1.35rem; }
+.wn-sub { margin: 2px 0 0 !important; font-size: .82rem; line-height: 1.3; }
+.wn-ic { flex: none; width: 48px; height: 48px; display: grid; place-items: center; border-radius: 16px; background: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); }
+.wn-ic .ic { width: 24px; height: 24px; }
+.wn-card .wn-list { margin: 0 -10px 14px; padding: 2px 10px 8px; display: grid; gap: 10px; align-content: start; scrollbar-width: thin; -webkit-mask-image: linear-gradient(#000 calc(100% - 16px), transparent); mask-image: linear-gradient(#000 calc(100% - 16px), transparent); }
+.wn-rel { position: relative; border-radius: 20px; padding: 14px 16px; background: var(--md-sys-color-surface-container-high); }
+.wn-rel.cur { background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container); }
+.wn-head { display: flex; align-items: center; flex-wrap: nowrap; gap: 10px; list-style: none; cursor: default; }
+details.wn-rel > summary.wn-head { cursor: pointer; padding-right: 22px; position: relative; min-height: 24px; }
+details.wn-rel > summary::-webkit-details-marker { display: none; }
+details.wn-rel > summary::after { content: ""; position: absolute; right: 2px; top: 50%; width: 8px; height: 8px; margin-top: -6px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); opacity: .6; transition: transform .25s var(--motion-spring); }
+details.wn-rel[open] > summary::after { transform: rotate(-135deg); margin-top: -2px; }
+details.wn-rel > summary:focus-visible { outline: 2px solid var(--md-sys-color-primary); outline-offset: 4px; border-radius: 8px; }
+.wn-ver { flex: none; font-weight: 700; font-size: .78rem; padding: 3px 10px; border-radius: 999px; background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); font-variant-numeric: tabular-nums; }
+details.wn-rel .wn-ver { background: var(--md-sys-color-surface-container-highest, var(--md-sys-color-surface-container-high)); color: var(--md-sys-color-on-surface-variant); }
+.wn-ttl { font-weight: 600; font-size: .95rem; flex: 1 1 auto; min-width: 0; }
+.wn-badge { flex: none; font-size: .7rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 3px 8px; border-radius: 8px; background: var(--md-sys-color-error); color: var(--md-sys-color-on-error); }
+.wn-list .wn-items { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; font-size: .88rem; line-height: 1.45; color: inherit; }
+.wn-list .wn-items li { position: relative; margin: 0; padding-left: 18px; }
+.wn-list .wn-items li::before { content: ""; position: absolute; left: 2px; top: .55em; width: 7px; height: 7px; border-radius: 50%; background: var(--md-sys-color-primary); }
+.wn-list .wn-items li.fix::before { border-radius: 2px; transform: rotate(45deg); background: var(--md-sys-color-error); }
+@media (max-width: 560px) {
+  #whatsnew { align-items: flex-end; padding: 0; }
+  #whatsnew .wn-card { width: 100%; max-height: 88vh; border-radius: 28px 28px 0 0; padding: 12px 18px calc(16px + env(safe-area-inset-bottom)); animation: wnUp .35s var(--motion-spring); }
+  #whatsnew .wn-card::before { content: ""; display: block; width: 36px; height: 4px; border-radius: 2px; margin: 0 auto 14px; background: var(--md-sys-color-outline-variant); }
+  #whatsnew .onb-actions .btn { width: 100%; }
+}
+@keyframes wnUp { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { #whatsnew .wn-card { animation: none; } details.wn-rel > summary::after { transition: none; } }
 .how-item { margin: 0 0 14px; }
 .how-item b { display: block; }
 .how-item p { margin: 4px 0 0; color: var(--md-sys-color-on-surface-variant); line-height: 1.5; font-size: .92rem; }
