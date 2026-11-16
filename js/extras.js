@@ -16,10 +16,10 @@
     var title = $('.card-title', c); if (!title) return;
     var name = title.textContent.replace(/\s+/g, ' ').trim();
     var pin = el('button', 'pin-btn'); pin.type = 'button';
-    pin.innerHTML = '<svg class="ic" aria-hidden="true"><use href="#i-pin"/></svg>';
+    pin.replaceChildren(svgIcon('pin'));
     pin.setAttribute('aria-label', 'Закрепить «' + name + '» на всех вкладках');
     var fold = el('button', 'card-fold'); fold.type = 'button';
-    fold.innerHTML = '<svg class="ic" aria-hidden="true"><use href="#i-chev"/></svg>';
+    fold.replaceChildren(svgIcon('chev'));
     fold.setAttribute('aria-label', 'Свернуть или развернуть «' + name + '»');
     pin.addEventListener('click', function () {
       if (pins.has(c.dataset.cid)) pins.delete(c.dataset.cid); else pins.add(c.dataset.cid);
@@ -143,9 +143,9 @@
   var step = 0, opener = null;
   function onbRender() {
     var s = STEPS[step];
-    $('#onbIc').innerHTML = '<svg class="ic" aria-hidden="true"><use href="#i-' + s[0] + '"/></svg>';
+    $('#onbIc').replaceChildren(svgIcon(s[0]));
     $('#onbTitle').textContent = s[1]; $('#onbText').textContent = s[2];
-    $('#onbDots').innerHTML = STEPS.map(function (_, i) { return '<i class="' + (i === step ? 'on' : '') + '"></i>'; }).join('');
+    $('#onbDots').replaceChildren.apply($('#onbDots'), STEPS.map(function (_, i) { return el('i', i === step ? 'on' : ''); }));
     $('#onbNext').textContent = step === STEPS.length - 1 ? 'Понятно' : 'Далее';
     $('#onbSkip').hidden = step === STEPS.length - 1;
   }
@@ -169,7 +169,14 @@
   var COMPS = [{
     id: 'faces', name: 'Поиск лиц', size: '~1,7 МБ',
     desc: 'Нужен для «Следить за лицом» в режиме «Обрезать». Модель BlazeFace, работает на устройстве.',
-    files: ['js/faces-worker.js', 'vendor/tfjs/runtime.js', 'vendor/tfjs/tfjs-backend-wasm-simd.wasm', 'vendor/tfjs/tfjs-backend-wasm.wasm', 'vendor/blazeface/blazeface-back.json', 'vendor/blazeface/blazeface-back.bin']
+    files: ['vendor/tfjs/runtime.js', 'vendor/tfjs/tfjs-backend-wasm-simd.wasm', 'vendor/tfjs/tfjs-backend-wasm.wasm', 'vendor/blazeface/blazeface-back.json', 'vendor/blazeface/blazeface-back.bin'],
+    sha: {
+      'vendor/tfjs/runtime.js': '9e8bf788fe935bea77e4591fd5c0c7499f11e7075d97787df26c1368e3cc5c15',
+      'vendor/tfjs/tfjs-backend-wasm-simd.wasm': '77ebb28a6d34f371dbbf2086b7f2de8994acd8ea5a3cf1fa24d2c26c840cac7b',
+      'vendor/tfjs/tfjs-backend-wasm.wasm': '70a5d516060464e5269f01c74bac1772d6b8ab6cb612acf16b5cdaf61f78d892',
+      'vendor/blazeface/blazeface-back.json': 'a765f7b2a6c1d841ecc0b0686e5f51b141b39b7bcdf2888542dc9d9fc4384a87',
+      'vendor/blazeface/blazeface-back.bin': 'dc9a97fdc50bc43216554bdd69aa3e7b9361a519ee7bdd996a2f69a98a6f9b72'
+    }
   }];
   var abs = function (p) { return new URL(p, location.href).href; };
   /* Компоненты лежат в файловой системе сайта (OPFS, папка aspect-video-components), а не в кэше сайта: их не сносит обновление версии.
@@ -186,18 +193,23 @@
     return keys.length ? [await caches.open(keys[keys.length - 1])] : [];
   }
   /* 'ok' | 'part' | 'none' и где лежит: 'opfs' | 'cache' */
+  /* комплект полный, если есть все файлы, кроме одного из двух wasm (второй нужен только на части устройств) */
+  function compComplete(c, have) {
+    var wasm = c.files.filter(function (f) { return /\.wasm$/.test(f); }), rest = c.files.filter(function (f) { return !/\.wasm$/.test(f); });
+    return rest.every(function (f) { return have.indexOf(f) >= 0; }) && (!wasm.length || wasm.some(function (f) { return have.indexOf(f) >= 0; }));
+  }
   async function compInfo(c) {
-    var have = 0, inCache = 0, i;
-    if (HAS_OPFS) for (i = 0; i < c.files.length; i++) if ((await opfsSize(c.files[i])) > 0) have++;
-    var cs = await swCaches();
-    if (cs.length) for (i = 0; i < c.files.length; i++) if (await cs[0].match(abs(c.files[i]), { ignoreSearch: true })) inCache++;
-    var best = Math.max(have, inCache), need = c.files.length - 1;   // один из двух wasm-файлов нужен только на части устройств
-    return { st: best >= need ? 'ok' : best ? 'part' : 'none', where: have >= inCache ? 'opfs' : 'cache', inCache: inCache, have: have };
+    var inO = [], inC = [], i, cs = await swCaches();
+    if (HAS_OPFS) for (i = 0; i < c.files.length; i++) if ((await opfsSize(c.files[i])) > 0) inO.push(c.files[i]);
+    if (cs.length) for (i = 0; i < c.files.length; i++) if (await cs[0].match(abs(c.files[i]), { ignoreSearch: true })) inC.push(c.files[i]);
+    var okO = compComplete(c, inO), okC = compComplete(c, inC), any = inO.length || inC.length;
+    return { st: okO || okC ? 'ok' : any ? 'part' : 'none', where: okO || inO.length >= inC.length ? 'opfs' : 'cache' };
   }
   async function compState(c) { return (await compInfo(c)).st; }
   /* Раньше файлы клали в кэш сайта: переносим в OPFS, чтобы они пережили обновление */
   async function migrateComps() {
     if (!HAS_OPFS) return;
+    await opfsDel('js/faces-worker.js');          // скрипт воркера теперь всегда берётся из версии сайта
     try {
       var cs = await swCaches(); if (!cs.length) return;
       for (var k = 0; k < COMPS.length; k++) for (var j = 0; j < COMPS[k].files.length; j++) {
@@ -218,6 +230,12 @@
     } catch (e) { try { await w.abort(); } catch (e2) { /* уже закрыт */ } await opfsDel(p); throw e; }   // кусков не оставляем
     return got;
   }
+  /* SHA-256 файла из OPFS: подменённый или битый файл не должен остаться в хранилище */
+  async function sha256Of(p) {
+    var buf = await (await (await cdir()).getFileHandle(fname(p))).getFile().then(function (f) { return f.arrayBuffer(); });
+    var h = await crypto.subtle.digest('SHA-256', buf);
+    return Array.from(new Uint8Array(h), function (x) { return x.toString(16).padStart(2, '0'); }).join('');
+  }
   async function drawComps() {
     var box = $('#compList'), mine = (drawComps.seq = (drawComps.seq || 0) + 1), frag = document.createDocumentFragment();
     if (!drawComps.migrated) { drawComps.migrated = true; await migrateComps(); }
@@ -237,18 +255,26 @@
   }
   async function downloadComp(c) {
     try {
-      var ok = 0, cs = HAS_OPFS ? [] : await swCaches();
+      var okList = [], bad = '', cs = HAS_OPFS ? [] : await swCaches();
       if (!HAS_OPFS && !cs.length) { toast('Сайт ещё не установлен для офлайна. Открой его по https и подожди минуту.', true); return; }
       for (var i = 0; i < c.files.length; i++) {
         try {
           var r = await fetch(abs(c.files[i]), { cache: 'reload' });
           if (!r.ok) continue;
-          if (HAS_OPFS) await writeOpfs(c.files[i], r); else await cs[0].put(abs(c.files[i]), r);
-          ok++;
+          if (HAS_OPFS) {
+            await writeOpfs(c.files[i], r);
+            if (c.sha && c.sha[c.files[i]] && window.crypto && crypto.subtle && (await sha256Of(c.files[i])) !== c.sha[c.files[i]]) {
+              await opfsDel(c.files[i]); bad = c.files[i]; continue;
+            }
+          } else await cs[0].put(abs(c.files[i]), r);
+          okList.push(c.files[i]);
         } catch (e) { /* один из wasm может отсутствовать, это не ошибка */ }
       }
+      var ok = okList.length;
       if (HAS_OPFS && ok && navigator.storage.persist) { try { await navigator.storage.persist(); } catch (e3) { /* браузер решит сам */ } }
-      toast(ok >= c.files.length - 1 ? 'Скачано: ' + c.name : 'Скачано не всё. Проверь соединение и повтори.', ok < c.files.length - 1);
+      if (bad) { toast('Файл не прошёл проверку подлинности и не сохранён: ' + bad, true); drawStorage(); return; }
+      var full = compComplete(c, okList);
+      toast(full ? 'Скачано: ' + c.name : 'Скачано не всё. Проверь соединение и повтори.', !full);
     } catch (e) { logError(e, 'компоненты'); toast('Не получилось скачать: ' + (e && e.message), true); }
     drawStorage();
   }

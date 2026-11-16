@@ -124,7 +124,7 @@
   /* ---------- форматы и сценарии ---------- */
   AV.PRESETS.forEach(function (p) {
     var b = el('button', 'chip'); b.type = 'button'; b.dataset.id = p.id;
-    b.innerHTML = p.id + '<small>' + p.hint + '</small>';
+    b.append(document.createTextNode(p.id), el('small', '', p.hint));
     b.addEventListener('click', function () { if (!busy) setMany({ rw: p.w, rh: p.h }); });
     $('#presets').appendChild(b);
   });

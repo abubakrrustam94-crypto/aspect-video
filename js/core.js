@@ -1,6 +1,6 @@
 'use strict';
 /* Aspect Studio Video — ядро: константы, настройки, журнал ошибок, уведомления. */
-const APP_VERSION = '2.2.3';
+const APP_VERSION = '2.2.4';
 const STORE_KEY = 'aspect-video-v1';
 const ERRLOG_KEY = 'aspect-video-errlog', ERRLOG_MAX = 30;
 const SEEN_KEY = 'aspect-video-seen', COUNT_KEY = 'aspect-video-count', THEME_KEY = 'aspect-video-theme', TAB_KEY = 'aspect-video-tab';
@@ -14,6 +14,12 @@ const ls = {
   set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* без хранилища */ } },
   del(k) { try { localStorage.removeItem(k); } catch (e) { /* без хранилища */ } }
 };
+/* значок из спрайта без innerHTML */
+function svgIcon(id) {
+  const NS = 'http://www.w3.org/2000/svg', s = document.createElementNS(NS, 'svg'), u = document.createElementNS(NS, 'use');
+  s.setAttribute('class', 'ic'); s.setAttribute('aria-hidden', 'true'); u.setAttribute('href', '#i-' + id); s.appendChild(u);
+  return s;
+}
 function el(tag, cls, text) {
   const e = document.createElement(tag);
   if (cls) e.className = cls;

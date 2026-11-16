@@ -547,4 +547,10 @@ window.I18N_EN = {
 "После скачивания сайт просит браузер не чистить свои данные сам.": "After downloading, the site asks the browser not to clear its data on its own.",
 " (в памяти сайта, не в кэше)": " (in site storage, not in the cache)",
 "Компоненты в памяти сайта": "Components in site storage",
+"Безопасность": "Security",
+"Политика безопасности страницы (CSP): сайт не выполняет чужие скрипты и не обращается к другим адресам.": "Content Security Policy (CSP): the site does not run foreign scripts and does not contact other addresses.",
+"Компоненты проверяются по SHA-256 после скачивания: подменённый или повреждённый файл не сохраняется.": "Components are checked with SHA-256 after downloading: a replaced or damaged file is not saved.",
+"Убрана вставка разметки через innerHTML, встроенный скрипт вынесен в файл.": "Markup insertion via innerHTML was removed and the inline script moved to a file.",
+"Заголовок Referrer отключён, список хэшей библиотек лежит в vendor/SHA256SUMS.": "The Referrer header is disabled; library hashes are listed in vendor/SHA256SUMS.",
+"Файл не прошёл проверку подлинности и не сохранён: ": "The file failed the authenticity check and was not saved: ",
 };

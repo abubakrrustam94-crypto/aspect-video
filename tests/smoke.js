@@ -174,10 +174,10 @@ const srv = http.createServer((q, r) => {
     const where = await pg.evaluate(async () => {
       const d = await (await navigator.storage.getDirectory()).getDirectoryHandle('aspect-video-components'); let n = 0;
       for await (const e of d.values()) n++;
-      let inCache = 0; for (const k of await caches.keys()) { const c = await caches.open(k); for (const r of await c.keys()) if (/blazeface|tfjs\/|faces-worker/.test(r.url)) inCache++; }
+      let inCache = 0; for (const k of await caches.keys()) { const c = await caches.open(k); for (const r of await c.keys()) if (/blazeface|tfjs\//.test(r.url)) inCache++; }
       return { n, inCache };
     });
-    ok(where.n >= 5 && where.inCache === 0, 'файлы лежат в OPFS (' + where.n + '), в кэше сайта их нет (' + where.inCache + ')');
+    ok(where.n === 5 && where.inCache === 0, 'файлы лежат в OPFS (' + where.n + '), в кэше сайта их нет (' + where.inCache + ')');
     const viaSw = await pg.evaluate(async () => { const r = await fetch('vendor/blazeface/blazeface-back.json'); return { ok: r.ok, type: r.headers.get('content-type'), n: (await r.text()).length }; });
     ok(viaSw.ok && /json/.test(viaSw.type) && viaSw.n > 100, 'service worker отдаёт модель из OPFS');
     await pg.click('#compList .comp-row .danger');
@@ -187,7 +187,7 @@ const srv = http.createServer((q, r) => {
 
     /* О программе */
     await pg.click('#settingsTabs [data-tab="about"]');
-    ok((await pg.textContent('#appVersion')) === "v2.2.3", 'версия показана');
+    ok((await pg.textContent('#appVersion')) === "v2.2.4", 'версия показана');
     await pg.click('#wnOpenBtn');
     await pg.waitForSelector('#wnList .wn-rel', { timeout: 5000 });
     ok((await pg.locator('#wnList .wn-rel').count()) >= 2, 'что нового: записей ' + (await pg.locator('#wnList .wn-rel').count()));

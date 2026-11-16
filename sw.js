@@ -1,12 +1,12 @@
 /* Aspect Studio Video — service worker (офлайн-режим) */
-const VERSION = 'aspect-video-v2.2.3';
+const VERSION = 'aspect-video-v2.2.4';
 const CORE = ['./', './index.html', './manifest.webmanifest', './css/base.css', './css/style.css',
-  './js/core.js', './js/render.js', './js/faces.js', './js/analyze.js', './js/decode.js', './js/audio.js', './js/session.js', './js/export.js', './js/app.js', './js/extras.js', './js/about.js', './js/changelog-data.js', './js/i18n-en.js', './js/i18n.js',
+  './js/core.js', './js/render.js', './js/faces.js', './js/analyze.js', './js/decode.js', './js/audio.js', './js/session.js', './js/export.js', './js/app.js', './js/extras.js', './js/about.js', './js/changelog-data.js', './js/heal.js', './js/faces-worker.js', './js/i18n-en.js', './js/i18n.js',
   './vendor/mp4-muxer.js', './vendor/webm-muxer.js', './vendor/gifenc.js', './vendor/mp4box/mp4box.all.mjs', './vendor/mp4box/rolldown-runtime-CNh9ExCG.mjs', './vendor/mp4box/styp-BV5G3FS-.mjs', './fonts/roboto-flex-cyrillic.woff2', './fonts/roboto-flex-latin.woff2', './icons/icon-192.png', './icons/icon-512.png'];
 /* Компоненты (модель лиц и её рантайм) лежат не в кэше сайта, а в файловой системе сайта (OPFS, папка aspect-video-components):
    их не сносит обновление версии, а размер виден отдельно. Service worker отдаёт их оттуда, поэтому всё работает без сети. */
 const COMP_DIR = 'aspect-video-components';
-const COMP_FILES = ['js/faces-worker.js', 'vendor/tfjs/runtime.js', 'vendor/tfjs/tfjs-backend-wasm-simd.wasm', 'vendor/tfjs/tfjs-backend-wasm.wasm', 'vendor/blazeface/blazeface-back.json', 'vendor/blazeface/blazeface-back.bin'];
+const COMP_FILES = ['vendor/tfjs/runtime.js', 'vendor/tfjs/tfjs-backend-wasm-simd.wasm', 'vendor/tfjs/tfjs-backend-wasm.wasm', 'vendor/blazeface/blazeface-back.json', 'vendor/blazeface/blazeface-back.bin'];
 const BASE = new URL('./', self.registration.scope).pathname;
 const relPath = url => { const p = new URL(url).pathname; return p.startsWith(BASE) ? p.slice(BASE.length) : ''; };
 const MIME = { js: 'text/javascript', mjs: 'text/javascript', wasm: 'application/wasm', json: 'application/json', bin: 'application/octet-stream' };
