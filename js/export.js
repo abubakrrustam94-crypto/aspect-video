@@ -190,6 +190,7 @@
       if (!AV.canGif()) throw new Error('Не загрузился модуль GIF. Обновите страницу.');
       if (total > 900) throw new Error('Для GIF слишком много кадров (' + total + '). Сократите ролик, уменьшите частоту кадров или ускорьте.');
       var gif = window.gifenc.GIFEncoder(), idx = 0;
+      try {
       for (var si = 0; si < segs.length; si++) {
         vid = await segs[si].load();
         vid.pause();
@@ -207,7 +208,7 @@
         }
       }
       gif.finish();
-      closeSrcs();
+      } finally { closeSrcs(); }                       // при отмене или ошибке декодеры тоже закрываются
       return { blob: new Blob([gif.bytes()], { type: 'image/gif' }), ext: 'gif', warnings: warnings, streamed: false, engine: Object.keys(engines).join('+') };
     }
 
@@ -250,30 +251,29 @@
     if (audioOn) muxOpts.audio = fmt === 'webm'
       ? { codec: 'A_OPUS', numberOfChannels: 2, sampleRate: 48000 }
       : { codec: 'aac', numberOfChannels: 2, sampleRate: 48000 };
-    var muxer = new M.Muxer(muxOpts);
-
-    var encErr = null, ok = false;
-    var venc = new VideoEncoder({
-      output: function (chunk, meta) { muxer.addVideoChunk(chunk, meta); },
-      error: function (e) { encErr = e; }
-    });
-    venc.configure(vcfg);
-    var aenc = null, aerr = null;
-    if (audioOn) {
-      aenc = new AudioEncoder({
-        output: function (chunk, meta) { muxer.addAudioChunk(chunk, meta); },
-        error: function (e) { aerr = e; }
-      });
-      aenc.configure(acfg);
-    }
+    var muxer = null, venc = null, aenc = null, encErr = null, aerr = null, ok = false;
     try {
+      /* всё, что создаёт файл или кодировщики, внутри try: при любой ошибке finally закроет их и удалит недописанный файл с диска */
+      muxer = new M.Muxer(muxOpts);
+      venc = new VideoEncoder({
+        output: function (chunk, meta) { muxer.addVideoChunk(chunk, meta); },
+        error: function (e) { encErr = e; }
+      });
+      venc.configure(vcfg);
+      if (audioOn) {
+        aenc = new AudioEncoder({
+          output: function (chunk, meta) { muxer.addAudioChunk(chunk, meta); },
+          error: function (e) { aerr = e; }
+        });
+        aenc.configure(acfg);
+      }
       var keyEvery = Math.max(1, Math.round(fps * 2)), cs = { primaries: 'bt709', transfer: 'bt709', matrix: 'bt709', fullRange: false };
-      var fi = 0, sampleOff = 0;
+      var fi = 0, sampleOff = 0, feeder = null;
       for (var s2 = 0; s2 < segs.length; s2++) {
         var g = segs[s2], rr = rOf(g);
         vid = await g.load();
         vid.pause();
-        var fsv = await frames(g, vid), feeder = null;
+        var fsv = await frames(g, vid); feeder = null;
         if (audioOn) {
           var dr = await getAudio(g);
           feeder = await makeSegAudio(aenc, function () { return aerr; }, dr && dr.open ? dr : null, g, ns[s2] / fps, sampleOff, o, outDur, speed);
@@ -306,8 +306,9 @@
       return { blob: blob, ext: fmt, warnings: warnings, streamed: out.stream, opfsName: out.name, engine: Object.keys(engines).join('+') };
     } finally {
       closeSrcs();
+      if (feeder) feeder.close();                      // звуковой декодер текущего отрезка при ошибке или отмене
       if (!ok) {
-        try { if (venc.state !== 'closed') venc.close(); } catch (e4) { /* ничего */ }
+        try { if (venc && venc.state !== 'closed') venc.close(); } catch (e4) { /* ничего */ }
         try { if (aenc && aenc.state !== 'closed') aenc.close(); } catch (e5) { /* ничего */ }
         await out.abort();
       }
@@ -354,6 +355,7 @@
     var step = (sr / SR) * speed, done = 0;            // step: сколько входных сэмплов на один выходной
     return {
       len: len,
+      close: function () { if (reader) { try { reader.close(); } catch (e) { /* ничего */ } reader = null; } },
       /* кодирует звук до сэмпла upTo этого отрезка (вместе с кадрами, чтобы muxer не копил видео в памяти) */
       feed: async function (upTo) {
         upTo = Math.min(len, upTo);

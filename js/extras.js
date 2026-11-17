@@ -205,7 +205,6 @@
     var okO = compComplete(c, inO), okC = compComplete(c, inC), any = inO.length || inC.length;
     return { st: okO || okC ? 'ok' : any ? 'part' : 'none', where: okO || inO.length >= inC.length ? 'opfs' : 'cache' };
   }
-  async function compState(c) { return (await compInfo(c)).st; }
   /* Раньше файлы клали в кэш сайта: переносим в OPFS, чтобы они пережили обновление */
   async function migrateComps() {
     if (!HAS_OPFS) return;

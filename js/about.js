@@ -44,8 +44,6 @@
   $('#wnOpenBtn').addEventListener('click', wnOpen);
   (function () {                       // после обновления (не при первом запуске) показываем изменения один раз
     var seen = ls.get(SEEN_KEY);
-    var num = function (v) { return String(v || '0').split('.').map(Number); };
-    var newer = function (a, b) { var x = num(a), y = num(b); for (var i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
     if (!seen) { ls.set(SEEN_KEY, APP_VERSION); return; }
     if (seen !== APP_VERSION) setTimeout(wnOpen, 900);   // версия сменилась (в том числе номером ниже): покажем один раз
   })();
@@ -174,7 +172,7 @@
           var cfg = { codec: 'avc1.64002A', width: 1080, height: 1920, bitrate: 6e6, framerate: 30, avc: { format: 'avc' } };
           var sup = await VideoEncoder.isConfigSupported(cfg);
           if (sup && sup.supported) {
-            var n = 0, enc = new VideoEncoder({ output: function () { n++; }, error: function () { /* учтётся ниже */ } });
+            var n = 0, enc = null; enc = new VideoEncoder({ output: function () { n++; }, error: function () { /* учтётся ниже */ } });
             enc.configure(sup.config || cfg);
             var t1 = performance.now(), N = 45;
             for (var j = 0; j < N; j++) {
@@ -186,7 +184,7 @@
             encRate = N / ((performance.now() - t1) / 1000);
             add('Кодирование H.264 1080×1920', Math.round(encRate) + ' кадров/с');
           } else add('Кодирование H.264 1080×1920', 'не поддерживается');
-        } catch (e) { add('Кодирование H.264 1080×1920', 'ошибка'); }
+        } catch (e) { try { if (enc && enc.state !== 'closed') enc.close(); } catch (e9) { /* ничего */ } add('Кодирование H.264 1080×1920', 'ошибка'); }
       } else add('Быстрый режим (WebCodecs)', 'недоступен');
       add('Запись на диск', AV.hasOpfs() ? 'есть' : 'нет, всё в памяти');
       add('Звук AAC', (await AV.audioSupport()) ? 'есть' : 'нет');

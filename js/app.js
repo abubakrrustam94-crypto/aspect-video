@@ -213,7 +213,7 @@
         added++;
       } catch (err) {
         toast('Не удалось открыть «' + f.name + '». Так бывает с HEVC/H.265, AVI и MKV: переведите в MP4 (H.264) или откройте в Chrome.', true);
-        logError('Не открылся ' + f.name + ' (' + (f.type || 'тип неизвестен') + '): ' + (err && err.message), 'файл');
+        logError('Не открылся файл (' + (f.type || 'тип неизвестен') + ', ' + fmtBytes(f.size) + '): ' + (err && err.message), 'файл');
       }
     }
     if (!added) return;
@@ -342,7 +342,7 @@
   video.addEventListener('pause', function () { $('#play use').setAttribute('href', '#i-play'); $('#play').setAttribute('aria-label', 'Играть'); draw(); });
   $('#seek').addEventListener('input', function () { video.currentTime = parseFloat($('#seek').value); });
   document.addEventListener('keydown', function (e) {
-    if (e.key === ' ' && !/INPUT|TEXTAREA|SELECT|BUTTON|SUMMARY/.test(e.target.tagName) && item() && !busy) { e.preventDefault(); $('#play').click(); }
+    if (e.key === ' ' && !/INPUT|TEXTAREA|SELECT|BUTTON|SUMMARY|A/.test(e.target.tagName) && !document.querySelector('.modal:not([hidden])') && item() && !busy) { e.preventDefault(); $('#play').click(); }
   });
 
   /* полоса миниатюр под ползунком: рисуется отдельным видео, превью не трогает */
@@ -399,8 +399,9 @@
   $('#wmFile').addEventListener('change', function () {
     var f = $('#wmFile').files[0]; $('#wmFile').value = '';
     if (!f) return;
+    if (f.size > 20 * 1048576) { toast('Картинка знака слишком большая (больше 20 МБ).', true); return; }
     var img = new Image(), url = URL.createObjectURL(f);
-    img.onload = function () { wmImg = img; $('#wmImgName').textContent = f.name; set('wmOn', true); draw(); };
+    img.onload = function () { if (wmImg && wmImg.src && wmImg.src !== url) URL.revokeObjectURL(wmImg.src); wmImg = img; $('#wmImgName').textContent = f.name; set('wmOn', true); draw(); };
     img.onerror = function () { URL.revokeObjectURL(url); toast('Не удалось открыть картинку.', true); };
     img.src = url;
   });
@@ -414,7 +415,7 @@
     if (facesRunning) return;
     s.textContent = !it ? '' : it.track ? 'Лицо найдено: кадр будет следовать за ним.' : it.noFace ? 'Лиц не найдено. Кадр режется по центру.' : 'Ещё не искали.';
   }
-  async function runFaces(it) {
+  async function runFaces(it, sig) {
     if (facesRunning || !it) return;
     facesRunning = true; updateFaceStatus();
     var s = $('#faceStatus'); s.textContent = 'Подготовка…';
@@ -423,18 +424,21 @@
     try {
       await new Promise(function (res, rej) { fv.onloadeddata = res; fv.onerror = rej; setTimeout(function () { rej(new Error('timeout')); }, 15000); });
       var track = await AV.trackFaces({
-        start: 0, end: it.dur, step: Math.max(0.5, it.dur / 120), signal: ac.signal, mode: S.faceMode, tap: it.tap,
+        start: 0, end: it.dur, step: Math.max(0.5, it.dur / 120), signal: sig || ac.signal, mode: S.faceMode, tap: it.tap,
         grab: async function (t) { await AV.seekTo(fv, t); var o = AV.getOriented(fv, S.rot, S.flipH, S.flipV); return o; },
         onProgress: function (f) { s.textContent = 'Ищу лицо: ' + Math.round(f * 100) + '%'; }
       });
       it.track = track; it.noFace = !track;
       if (!track) toast('Лиц не найдено. Кадр режется по центру.');
     } catch (e) {
+      if (e && e.aborted) return;                       // отмена экспорта: молча выходим, ошибку не показываем
       logError(e, 'лица');
       toast('Не получилось запустить поиск лиц: ' + (e && e.message), true);
     } finally {
       fv.removeAttribute('src'); fv.load();
       facesRunning = false; updateFaceStatus(); draw();
+      var nowIt = item();                              // пока шёл поиск, могли переключиться на другое видео: ему поиск не запускался
+      if (!busy && nowIt && nowIt !== it && S.mode === 'crop' && S.faceTrack && S.faceMode !== 'tap' && !nowIt.track && !nowIt.noFace) setTimeout(function () { runFaces(nowIt); }, 0);
     }
   }
   pv.addEventListener('click', function (e) {
@@ -482,6 +486,7 @@
   $('#capFile').addEventListener('change', async function () {
     var f = $('#capFile').files[0]; $('#capFile').value = '';
     var it = item(); if (!f || !it) return;
+    if (f.size > 2 * 1048576) { toast('Файл субтитров слишком большой (больше 2 МБ).', true); return; }
     try {
       var list = AV.parseSubs(await f.text());
       if (!list.length) { toast('В файле не нашлось подписей. Нужен формат SRT или VTT.', true); return; }
@@ -653,7 +658,7 @@
     var i, it;
     for (i = 0; i < group.length; i++) {
       it = group[i];
-      if (S.mode === 'crop' && S.faceTrack && !it.track && !it.noFace) { setProgress(title, 0, 'Ищу лицо…'); await runFaces(it); }
+      if (S.mode === 'crop' && S.faceTrack && !it.track && !it.noFace) { setProgress(title, 0, 'Ищу лицо…'); await runFaces(it, abort.signal); }
       if (S.stab && !stabOk(it)) { stabTitle = title; setProgress(title, 0, 'Стабилизация…'); await runStab(it); }
       if (abort.signal.aborted) { var ae = new Error('Отменено'); ae.aborted = true; throw ae; }
     }
@@ -722,7 +727,7 @@
           toast('«' + it.name + '»: ' + ((err && err.message) || err), true);
           continue;
         }
-        var name = fileName(it, res.o, i, res.ext);
+        var name = fileName(it, res.o, 0, res.ext);   // счётчик растёт после каждого сохранения, поэтому сдвиг по номеру группы давал дыры: 001, 003, 005
         if (grp.length > 1) name = name.replace(/(\.[^.]+)$/, '_склейка$1');
         var opfs = res.opfsName || null;
         if (!opfs) { var pb = await AV.persistBlob(res.blob, res.ext); if (pb) { res.blob = pb.blob; opfs = pb.name; } }   // готовое видео переживёт перезапуск и не держит память
