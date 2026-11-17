@@ -1,0 +1,34 @@
+name: Проверки
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Playwright и axe
+        run: |
+          npm init -y >/dev/null
+          npm i playwright axe-core
+          npx playwright install --with-deps chromium chrome
+      - name: Версии и хэши
+        run: |
+          node tests/version.js "$PWD"
+          node tests/hashes.js "$PWD"
+      - name: Все проверки в Chromium
+        run: tools/ci.sh
+      - name: Проверки в настоящем Chrome (H.264, быстрое чтение, AAC если умеет)
+        run: |
+          node tests/chrome.js "$PWD" "$PWD/tests/fixtures" "$RUNNER_TEMP"
+        env:
+          AV_CHANNEL: chrome

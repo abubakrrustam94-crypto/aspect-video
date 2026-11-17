@@ -315,13 +315,53 @@
     }
   };
 
+  /* Громкость по стандарту EBU R128 / ITU-R BS.1770: K-фильтр, блоки по 400 мс, два порога (−70 LUFS и −10 LU от среднего).
+     Мерим потоком: push() получает куски звука, result() возвращает LUFS (−Infinity, если звука нет). */
+  AV.lufsMeter = function (sr) {
+    function biq(b0, b1, b2, a1, a2) { return { b0: b0, b1: b1, b2: b2, a1: a1, a2: a2 }; }
+    var K1 = Math.tan(Math.PI * 1681.974450955533 / sr), Vh = Math.pow(10, 3.999843853973347 / 20), Vb = Math.pow(Vh, 0.4996667741545416), Q1 = 0.7071752369554196;
+    var d1 = 1 + K1 / Q1 + K1 * K1;
+    var sh = biq((Vh + Vb * K1 / Q1 + K1 * K1) / d1, 2 * (K1 * K1 - Vh) / d1, (Vh - Vb * K1 / Q1 + K1 * K1) / d1, 2 * (K1 * K1 - 1) / d1, (1 - K1 / Q1 + K1 * K1) / d1);
+    var K2 = Math.tan(Math.PI * 38.13547087602444 / sr), Q2 = 0.5003270373238773, d2 = 1 + K2 / Q2 + K2 * K2;
+    var hp = biq(1, -2, 1, 2 * (K2 * K2 - 1) / d2, (1 - K2 / Q2 + K2 * K2) / d2);
+    var st = [[0, 0, 0, 0], [0, 0, 0, 0]], subN = Math.max(1, Math.round(sr * 0.1)), acc = 0, cnt = 0, subs = [];
+    function run(ci, x) {
+      var s = st[ci], y = sh.b0 * x + s[0]; s[0] = sh.b1 * x - sh.a1 * y + s[1]; s[1] = sh.b2 * x - sh.a2 * y;
+      var z = hp.b0 * y + s[2]; s[2] = hp.b1 * y - hp.a1 * z + s[3]; s[3] = hp.b2 * y - hp.a2 * z;
+      return z;
+    }
+    return {
+      push: function (l, r, from, to) {                // l, r — каналы (r может совпадать с l), берём сэмплы from..to
+        for (var i = from; i < to; i++) {
+          var a = run(0, l[i]), b = run(1, r[i]);
+          acc += a * a + b * b;
+          if (++cnt >= subN) { subs.push(acc / cnt); acc = 0; cnt = 0; }
+        }
+      },
+      result: function () {
+        if (cnt > subN / 2 || !subs.length) { if (cnt) subs.push(acc / cnt); acc = 0; cnt = 0; }
+        var blocks = [], i, j, m;
+        if (subs.length < 4) { m = 0; for (i = 0; i < subs.length; i++) m += subs[i]; blocks.push(m / Math.max(1, subs.length)); }
+        else for (i = 0; i + 4 <= subs.length; i++) { m = 0; for (j = 0; j < 4; j++) m += subs[i + j]; blocks.push(m / 4); }
+        function lu(ms) { return -0.691 + 10 * Math.log10(ms); }
+        var abs = blocks.filter(function (v) { return v > 0 && lu(v) > -70; });
+        if (!abs.length) return -Infinity;
+        var mean = abs.reduce(function (p, v) { return p + v; }, 0) / abs.length, thr = lu(mean) - 10;
+        var rel = abs.filter(function (v) { return lu(v) > thr; });
+        if (!rel.length) return -Infinity;
+        return lu(rel.reduce(function (p, v) { return p + v; }, 0) / rel.length);
+      }
+    };
+  };
+  AV.LUFS_TARGET = -14;                                // как у YouTube и большинства соцсетей
+
   /* Звук одного отрезка: вырезаем, меняем скорость, громкость, затухание, приводим к 48 кГц стерео, кодируем кусками.
      au = null → тишина нужной длины. Звук читается подряд небольшими блоками, поэтому длинные ролики не требуют памяти. */
   async function makeSegAudio(aenc, getErr, au, g, segOut, off, o, outDur, speed) {
     var SR = 48000, CH = 4096, len = Math.max(1, Math.round(segOut * SR)), gain = Math.max(0, o.vol);
     var sr = au ? au.sr : SR, s0 = Math.max(0, Math.floor(g.start * sr)), s1 = Math.floor(g.end * sr);
-    if (au && o.norm) {                                // первый проход: ищем самый громкий пик, чтобы подогнать под ~ -0,4 дБ
-      var rd = au.open(g.start), peak = 0, blk;
+    if (au && o.norm) {                                // первый проход: меряем громкость (LUFS) и пик, подгоняем к −14 LUFS, но без перегруза
+      var rd = au.open(g.start), peak = 0, blk, meter = AV.lufsMeter(sr);
       try {
         while ((blk = await rd.next())) {
           if (o.signal.aborted) throw abortErr();
@@ -330,9 +370,12 @@
             var d = blk.ch[cc], from = Math.max(0, s0 - blk.pos), to = Math.min(d.length, s1 - blk.pos);
             for (var p = from; p < to; p += 2) { var v = d[p] < 0 ? -d[p] : d[p]; if (v > peak) peak = v; }
           }
+          var fl = Math.max(0, s0 - blk.pos), tl = Math.min(blk.ch[0].length, s1 - blk.pos);
+          if (tl > fl) meter.push(blk.ch[0], blk.ch[Math.min(1, blk.ch.length - 1)], fl, tl);
         }
       } finally { rd.close(); }
-      if (peak > 0.001) gain *= Math.min(8, 0.95 / peak);
+      var lufs = meter.result();
+      if (isFinite(lufs) && peak > 0.001) gain *= Math.min(10, Math.pow(10, (AV.LUFS_TARGET - lufs) / 20), 0.95 / peak);
     }
     var reader = au ? au.open(g.start) : null, blocks = [], bi = 0, rend = false;
     async function ensure(upTo) {                      // подгружаем блоки, пока не покроем сэмпл upTo

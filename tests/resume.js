@@ -10,7 +10,7 @@ const srv = http.createServer((q, r) => {
   let p = path.join(root, decodeURIComponent(q.url.split('?')[0])); if (p.endsWith('/')) p += 'index.html';
   fs.readFile(p, (e, d) => { if (e) { r.writeHead(404); r.end(); return; } r.writeHead(200, { 'content-type': mime[path.extname(p)] || 'application/octet-stream' }); r.end(d); });
 }).listen(8773, async () => {
-  const b = await chromium.launch();
+  const b = await chromium.launch(process.env.AV_CHROME ? { executablePath: process.env.AV_CHROME } : process.env.AV_CHANNEL ? { channel: process.env.AV_CHANNEL } : {});
   const ctx = await b.newContext({ viewport: { width: 430, height: 900 }, locale: 'ru-RU' });
   await ctx.addInitScript(() => { try { localStorage.setItem('aspect-video-onboarded', '1'); } catch (e) { /* ничего */ } });
   const pg = await ctx.newPage(); const errs = [];

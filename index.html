@@ -5,7 +5,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; connect-src 'self' blob: data:; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, viewport-fit=cover">
-<meta name="av-version" content="2.3.0">
+<meta name="av-version" content="2.5.0">
 <meta name="theme-color" content="#0f0f14">
 <meta name="description" content="Меняет формат видео без обрезки: Reels, Shorts, пост 4:5, YouTube. Всё работает в браузере, видео никуда не загружается.">
 <title>Aspect Studio Video</title>
@@ -80,6 +80,13 @@
         <button type="button" class="btn btn-outlined btn-sm" id="projDrop">Забыть</button>
       </div>
       <input type="file" id="projFile" accept="video/*,.mp4,.mov,.m4v,.webm,.mkv,.avi,.3gp,.ts,.mts" multiple hidden>
+    </section>
+    <section class="resume" id="installBar" aria-label="Установка приложения" hidden>
+      <p>Установить Aspect Studio Video как приложение? Оно открывается отдельным окном и работает без интернета.</p>
+      <div class="row" style="margin:0">
+        <button type="button" class="btn btn-main btn-sm" id="installGo">Установить</button>
+        <button type="button" class="btn btn-outlined btn-sm" id="installNo">Не сейчас</button>
+      </div>
     </section>
     <section class="resume fmt-help" id="fmtHelp" role="status" aria-label="Видео не открылось" hidden>
       <p><b id="fmtHelpTitle"></b></p>
@@ -188,6 +195,7 @@
           <button type="button" data-val="blur">Размытие</button>
           <button type="button" data-val="mirror">Зеркало</button>
           <button type="button" data-val="color">Цвет</button>
+          <button type="button" data-val="smart">Умный</button>
           <button type="button" data-val="crop">Обрезать</button>
         </div>
         <div class="row" id="colorRow" style="margin-top:14px" hidden>
@@ -272,9 +280,9 @@
             <span class="field-label">Громкость</span>
             <div class="range-row"><input type="range" data-key="vol" min="0" max="200" step="5" aria-label="Громкость"><output data-out="vol" data-unit="%"></output></div>
           </div>
-          <label class="switch"><input type="checkbox" data-key="norm"><span class="track"></span><span>Выровнять громкость</span></label>
+          <label class="switch"><input type="checkbox" data-key="norm"><span class="track"></span><span>Выровнять громкость (−14 LUFS)</span></label>
         </div>
-        <p class="note">«Выровнять» поднимает самый громкий момент почти до максимума без искажений. Громкость и затухание работают в быстром режиме сохранения.</p>
+        <p class="note">«Выровнять» подгоняет среднюю громкость к −14 LUFS, как у YouTube и соцсетей: тихое видео станет громче, слишком громкое тише. Если для этого пришлось бы превысить предел без искажений, громкость поднимается меньше. Громкость и затухание работают в быстром режиме сохранения.</p>
       </section>
       <section class="card" data-tab="video">
         <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-image"/></svg> Кадр как картинка</div>
@@ -425,6 +433,17 @@
               <button type="button" data-val="0.2">Максимум</button>
             </div>
           </div>
+          <div>
+            <span class="field-label">Размер файла не больше</span>
+            <div class="seg" data-group="target" data-num role="group" aria-label="Размер файла не больше">
+              <button type="button" data-val="0">Без лимита</button>
+              <button type="button" data-val="10">10 МБ</button>
+              <button type="button" data-val="25">25 МБ</button>
+              <button type="button" data-val="50">50 МБ</button>
+              <button type="button" data-val="100">100 МБ</button>
+            </div>
+            <p class="note" style="margin-top:8px">Битрейт подбирается под длину видео, чтобы файл влез в лимит (для почты, мессенджеров). Выбранный выше битрейт тогда не используется. Если лимит мал для такой длины, качество будет низким.</p>
+          </div>
         </div>
         <p class="note" id="estNote"></p>
         <p class="note warn" id="memWarn" hidden></p>
@@ -522,6 +541,12 @@
           <button type="button" class="btn btn-outlined btn-sm danger" id="resetAll">Сбросить все настройки</button>
         </div>
         <div class="speed-out" id="speedOut" role="status" aria-live="polite" hidden></div>
+        <details class="errlog" id="perfBox">
+          <summary>Журнал скорости (<span id="perfCount">0</span>)</summary>
+          <p class="note" style="margin-top:8px">Сколько времени занимало каждое сохранение на этом устройстве. Хранится только здесь и никуда не отправляется.</p>
+          <pre id="perfText" tabindex="0"></pre>
+          <div class="row"><button type="button" class="btn btn-outlined btn-sm" id="perfClear">Очистить</button></div>
+        </details>
         <details class="errlog" id="errLogBox">
           <summary>Журнал ошибок (<span id="errLogCount">0</span>)</summary>
           <p class="note" style="margin-top:8px">Хранится только на этом устройстве и никуда не отправляется. Если что-то сломалось, скопируй и пришли разработчику.</p>
@@ -605,6 +630,7 @@
 <script src="js/audio.js"></script>
 <script src="js/session.js"></script>
 <script src="js/project.js"></script>
+<script src="js/local.js"></script>
 <script src="js/export.js"></script>
 <script src="js/app.js"></script>
 <script src="js/extras.js"></script>

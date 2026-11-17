@@ -38,7 +38,10 @@
       wm: wmObj(), wmImg: wmImg
     };
   }
-  function bitrateFor(o, fps) {
+  /* dur — длина результата в секундах. При лимите размера битрейт считается из него: 90 % лимита на видео и звук, остальное — запас на контейнер и неточность кодека */
+  function bitrateFor(o, fps, dur, clip) {
+    if (S.target && !clip && S.format !== 'gif' && dur > 0)
+      return Math.max(100000, Math.min(60000000, Math.floor((S.target * 1048576 * 8 * 0.9) / dur - (S.mute ? 0 : 128000))));
     return Math.max(1000000, Math.min(60000000, Math.round(o.w * o.h * (fps || S.fps) * S.quality)));
   }
   function baseName(f) { return (f.name || 'video').replace(/\.[^.]+$/, ''); }
@@ -81,6 +84,7 @@
       blur: 'Поля заполняются размытой копией самого видео.',
       mirror: 'За краями кадра продолжается отражение видео.',
       color: 'Поля заливаются выбранным цветом.',
+      smart: 'Поля продолжают цвета края кадра и темнеют к краю экрана: похоже на подсветку.',
       crop: 'Кадр заполняется целиком, края обрезаются. Остальные режимы ничего не режут.'
     }[S.mode];
     $('#wmTextRow').hidden = S.wmType !== 'text';
@@ -360,8 +364,24 @@
   video.addEventListener('play', function () { $('#play use').setAttribute('href', '#i-pause'); $('#play').setAttribute('aria-label', 'Пауза'); });
   video.addEventListener('pause', function () { $('#play use').setAttribute('href', '#i-play'); $('#play').setAttribute('aria-label', 'Играть'); draw(); });
   $('#seek').addEventListener('input', function () { video.currentTime = parseFloat($('#seek').value); });
+  /* Горячие клавиши: пробел — пуск/пауза; ← → — кадр назад/вперёд (с Shift — секунда); I и O — начало и конец; S — сохранить */
   document.addEventListener('keydown', function (e) {
-    if (e.key === ' ' && !/INPUT|TEXTAREA|SELECT|BUTTON|SUMMARY|A/.test(e.target.tagName) && !document.querySelector('.modal:not([hidden])') && item() && !busy) { e.preventDefault(); $('#play').click(); }
+    if (e.ctrlKey || e.metaKey || e.altKey || !item() || busy || document.querySelector('.modal:not([hidden])')) return;
+    var tg = e.target, tag = tg.tagName;
+    if (/TEXTAREA|SELECT/.test(tag) || (tag === 'INPUT' && tg.type !== 'checkbox') || (tg.isContentEditable)) return;
+    var k = e.key;
+    if (k === ' ') { if (/^(INPUT|BUTTON|SUMMARY|A)$/.test(tag)) return; e.preventDefault(); $('#play').click(); return; }
+    if (k === 'ArrowLeft' || k === 'ArrowRight') {
+      if (tg.closest && tg.closest('[role="tablist"],[role="group"]')) return;     // стрелки там нужны для переключения
+      e.preventDefault(); video.pause();
+      var d = (k === 'ArrowRight' ? 1 : -1) * (e.shiftKey ? 1 : 1 / 30);
+      video.currentTime = Math.max(0, Math.min(item().dur, video.currentTime + d));
+      return;
+    }
+    if (/^(INPUT|BUTTON|SUMMARY|A)$/.test(tag) && tag !== 'BUTTON') return;
+    if (k === 'i' || k === 'I') { e.preventDefault(); $('#setStart').click(); }
+    else if (k === 'o' || k === 'O') { e.preventDefault(); $('#setEnd').click(); }
+    else if (k === 's' || k === 'S') { e.preventDefault(); $('#saveBtn').click(); }
   });
 
   /* полоса миниатюр под ползунком: рисуется отдельным видео, превью не трогает */
@@ -632,10 +652,11 @@
     var it = item(), n = $('#estNote'), w = $('#memWarn'); if (!n) return;
     if (!it) { n.textContent = ''; w.hidden = true; return; }
     var o = outSize(it), grp = S.concat && Q.length > 1 ? Q : [it], dur = groupDur(grp), fps = outFps(dur);
-    var est = S.format === 'gif' ? dur * fps * o.w * o.h * 0.3 : (bitrateFor(o, fps) + (S.mute || S.format === 'gif' ? 0 : 128000)) * dur / 8;
+    var est = S.format === 'gif' ? dur * fps * o.w * o.h * 0.3 : (bitrateFor(o, fps, dur) + (S.mute || S.format === 'gif' ? 0 : 128000)) * dur / 8;
     n.textContent = 'Результат ' + o.w + '×' + o.h + ', ' + fps + ' кадров/с, ~' + fmtBytes(est) + ' (' + fmtTime(dur) + (grp.length > 1 ? ', склейка из ' + grp.length : '') + ').';
     var warn = '';
-    if (S.format === 'gif' && dur * fps > 900) warn = 'Для GIF слишком длинно: не больше 90 секунд. Сократите фрагмент или ускорьте видео.';
+    if (S.target && S.format !== 'gif' && bitrateFor(o, fps, dur) / (o.w * o.h * fps) < 0.03) warn = 'Для лимита ' + S.target + ' МБ это видео слишком длинное: качество будет низким. Уменьшите размер кадра, обрежьте видео или выберите больший лимит.';
+    else if (S.format === 'gif' && dur * fps > 900) warn = 'Для GIF слишком длинно: не больше 90 секунд. Сократите фрагмент или ускорьте видео.';
     else if (!AV.hasOpfs() && est > DEV_MEM * 90 * 1048576) warn = 'Файл получится большим, а запись на диск в этом браузере недоступна: он собирается в памяти. На слабом телефоне может не хватить памяти. Уменьшите размер, битрейт или длину.';
     else if (est > 1.5 * 1073741824) warn = 'Файл получится больше 1,5 ГБ. Для соцсетей лучше уменьшить размер или выбрать «Компактный» битрейт.';
     w.hidden = !warn; w.textContent = warn;
@@ -705,7 +726,7 @@
       });
     });
     var common = {
-      format: fmt, segs: segs, W: o.w, H: o.h, fps: fps, bitrate: bitrateFor(o, fps), speed: S.speed,
+      format: fmt, segs: segs, W: o.w, H: o.h, fps: fps, bitrate: bitrateFor(o, fps, dur, !!clip), speed: S.speed,
       mute: clip ? true : S.mute, vol: S.vol / 100, norm: S.norm, fadeIn: clip ? 0 : S.fadeIn, fadeOut: clip ? 0 : S.fadeOut,
       tOff: clip ? (clip.start - group[0].start) / S.speed : 0,
       /* для записи в реальном времени (только один цельный отрезок) */
@@ -756,6 +777,7 @@
         if (qi !== cur) { await select(qi); }
         video.pause();
         var res, title = grp.length > 1 ? 'Склейка из ' + grp.length + ' видео' : groups.length > 1 ? 'Видео ' + (i + 1) + ' из ' + groups.length : 'Сохраняю видео';
+        var tStart = performance.now();
         try { res = await exportGroup(grp, title); }
         catch (err) {
           if (err && err.aborted) throw err;
@@ -763,6 +785,8 @@
           toast('«' + it.name + '»: ' + ((err && err.message) || err), true);
           continue;
         }
+        if (S.target && res.fmt !== 'gif' && res.blob.size > S.target * 1048576) (res.warnings = res.warnings || []).push('Файл получился ' + fmtBytes(res.blob.size) + ', больше лимита ' + S.target + ' МБ. Уменьшите размер кадра или выберите больший лимит.');
+        if (AV.perfAdd) AV.perfAdd({ fmt: res.fmt, w: res.o.w, h: res.o.h, dur: groupDur(grp), ms: performance.now() - tStart, eng: res.engine });
         var name = fileName(it, res.o, 0, res.ext);   // счётчик растёт после каждого сохранения, поэтому сдвиг по номеру группы давал дыры: 001, 003, 005
         if (grp.length > 1) name = name.replace(/(\.[^.]+)$/, '_склейка$1');
         var opfs = res.opfsName || null;
@@ -775,6 +799,7 @@
           } catch (e2) { logError(e2, 'папка'); toast('В папку записать не удалось, файл в списке ниже.', true); }
         }
         ls.set(COUNT_KEY, String((+ls.get(COUNT_KEY) || 0) + 1));
+        if (AV.afterSave) AV.afterSave();
         await AV.session.done(i, { name: name, opfs: opfs, ext: res.ext, fmt: res.fmt, type: res.blob.type, w: res.o.w, h: res.o.h, warnings: res.warnings, streamed: !!res.streamed });
         addResult({ engine: res.engine, name: name, blob: res.blob, url: URL.createObjectURL(res.blob), o: res.o, warnings: res.warnings, ext: res.ext, fmt: res.fmt, saved: saved, streamed: res.streamed });
         done++;

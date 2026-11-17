@@ -134,7 +134,35 @@
     ctx.fillRect(0, 0, W, H);
   }
 
-  /* o: { mode: 'blur'|'mirror'|'color'|'crop', color, focus: {x,y}|null } */
+  /* «Умный» фон: поле продолжает цвета самого края кадра (как лёгкая подсветка), а к краю экрана темнеет.
+     Берём тонкую полоску у края уменьшенной копии кадра и растягиваем её на поле: без чтения пикселей, поэтому быстро. */
+  var smart = null, smartCtx = null;
+  function drawSmartBackground(ctx, W, H, src, x, y, dw, dh) {
+    if (!smart) { smart = document.createElement('canvas'); smart.width = 32; smart.height = 32; smartCtx = smart.getContext('2d'); }
+    smartCtx.imageSmoothingEnabled = true; smartCtx.imageSmoothingQuality = 'high';
+    smartCtx.drawImage(src, 0, 0, 32, 32);
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+    var g;
+    if (y > 1) {                                                   // поля сверху и снизу
+      ctx.drawImage(smart, 0, 0, 32, 1, 0, 0, W, y + 1);
+      ctx.drawImage(smart, 0, 31, 32, 1, 0, y + dh - 1, W, H - y - dh + 1);
+      g = ctx.createLinearGradient(0, 0, 0, y); g.addColorStop(0, 'rgba(0,0,0,.6)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, y + 1);
+      g = ctx.createLinearGradient(0, H, 0, y + dh); g.addColorStop(0, 'rgba(0,0,0,.6)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g; ctx.fillRect(0, y + dh - 1, W, H - y - dh + 1);
+    }
+    if (x > 1) {                                                   // поля слева и справа
+      ctx.drawImage(smart, 0, 0, 1, 32, 0, 0, x + 1, H);
+      ctx.drawImage(smart, 31, 0, 1, 32, x + dw - 1, 0, W - x - dw + 1, H);
+      g = ctx.createLinearGradient(0, 0, x, 0); g.addColorStop(0, 'rgba(0,0,0,.6)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, x + 1, H);
+      g = ctx.createLinearGradient(W, 0, x + dw, 0); g.addColorStop(0, 'rgba(0,0,0,.6)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g; ctx.fillRect(x + dw - 1, 0, W - x - dw + 1, H);
+    }
+  }
+
+  /* o: { mode: 'blur'|'mirror'|'color'|'smart'|'crop', color, focus: {x,y}|null } */
   AV.drawFrame = function (ctx, W, H, src, sw, sh, o) {
     var mode = (o && o.mode) || 'blur';
     if (!sw || !sh) { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H); return; }
@@ -151,6 +179,7 @@
       x = (W - dw) / 2; y = (H - dh) / 2;
       if (mode === 'color') { ctx.fillStyle = (o && o.color) || '#000000'; ctx.fillRect(0, 0, W, H); }
       else if (mode === 'mirror') drawMirrorBackground(ctx, W, H, src, sw, sh, x, y, dw, dh);
+      else if (mode === 'smart') drawSmartBackground(ctx, W, H, src, x, y, dw, dh);
       else drawBlurBackground(ctx, W, H, src, sw, sh);
     }
     ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';

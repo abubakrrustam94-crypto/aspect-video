@@ -11,7 +11,7 @@ const srv = http.createServer((q, r) => {
   let p = path.join(root, decodeURIComponent(q.url.split('?')[0])); if (p.endsWith('/')) p += 'index.html';
   fs.readFile(p, (e, d) => { if (e) { r.writeHead(404); r.end(); return; } r.writeHead(200, { 'content-type': mime[path.extname(p)] || 'application/octet-stream' }); r.end(d); });
 }).listen(8781, async () => {
-  const b = await chromium.launch();
+  const b = await chromium.launch(process.env.AV_CHROME ? { executablePath: process.env.AV_CHROME } : process.env.AV_CHANNEL ? { channel: process.env.AV_CHANNEL } : {});
   const ctx = await b.newContext({ viewport: { width: 430, height: 900 }, locale: 'ru-RU' });
   await ctx.addInitScript(() => { try { localStorage.setItem('aspect-video-onboarded', '1'); } catch (e) { /* ничего */ } });
   const pg = await ctx.newPage(); const errs = [];
@@ -63,7 +63,7 @@ const srv = http.createServer((q, r) => {
     ok(back[0].rot === 90 && Math.abs(back[0].s - 0.4) < 0.02 && Math.abs(back[0].e - 1.6) < 0.02, 'настройки проекта вернулись: ' + JSON.stringify(back[0]));
     ok(await pg.$eval('#projBar', e => e.hidden), 'плашка проекта скрылась');
     await pg.reload(); await pg.waitForSelector('#projBar:not([hidden])');
-    await pg.click('#projDrop'); await pg.reload(); await pg.waitForSelector('#uploadBtn'); await pg.waitForTimeout(600);
+    await pg.click('#projDrop'); await pg.waitForSelector('#projBar', { state: 'hidden' }); await pg.reload(); await pg.waitForSelector('#uploadBtn'); await pg.waitForTimeout(600);
     ok(await pg.$eval('#projBar', e => e.hidden), '«Забыть» стирает проект');
     ok(errs.length === 0, 'ошибок страницы нет ' + errs.join('|'));
   } catch (e) { console.log('FAIL исключение: ' + e.message); fails++; }

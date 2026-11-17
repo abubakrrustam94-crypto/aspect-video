@@ -11,7 +11,7 @@ const srv = http.createServer((q, r) => {
   let p = path.join(root, decodeURIComponent(q.url.split('?')[0])); if (p.endsWith('/')) p += 'index.html';
   fs.readFile(p, (e, d) => { if (e) { r.writeHead(404); r.end(); return; } r.writeHead(200, { 'content-type': mime[path.extname(p)] || 'application/octet-stream' }); r.end(d); });
 }).listen(8766, async () => {
-  const b = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
+  const b = await chromium.launch(Object.assign({ args: ['--autoplay-policy=no-user-gesture-required'] }, process.env.AV_CHROME ? { executablePath: process.env.AV_CHROME } : process.env.AV_CHANNEL ? { channel: process.env.AV_CHANNEL } : {}));
   /* первое посещение: мини-обучение */
   {
     const c0 = await b.newContext({ viewport: { width: 430, height: 900 }, locale: 'ru-RU' }); const p0 = await c0.newPage();
@@ -187,12 +187,12 @@ const srv = http.createServer((q, r) => {
 
     /* О программе */
     await pg.click('#settingsTabs [data-tab="about"]');
-    ok((await pg.textContent('#appVersion')) === "v2.3.0", 'версия показана');
+    ok((await pg.textContent('#appVersion')) === "v2.5.0", 'версия показана');
     await pg.click('#wnOpenBtn');
     await pg.waitForSelector('#wnList .wn-rel', { timeout: 5000 });
     ok((await pg.locator('#wnList .wn-rel').count()) >= 2, 'что нового: записей ' + (await pg.locator('#wnList .wn-rel').count()));
     await pg.click('#wnClose');
-    await pg.click('#howBtn'); ok((await pg.locator('#howList .how-item').count()) === 4, 'как это работает: 4 пункта'); await pg.click('#howClose');
+    await pg.click('#howBtn'); ok((await pg.locator('#howList .how-item').count()) === 5, 'как это работает: 5 пунктов'); await pg.click('#howClose');
     await pg.click('#speedBtn');
     await pg.waitForFunction(() => document.querySelector('#speedOut .sp-sum'), null, { timeout: 60000 }).catch(() => {});
     console.log('speed:', (await pg.textContent('#speedOut')).replace(/\s+/g, ' ').slice(0, 300));

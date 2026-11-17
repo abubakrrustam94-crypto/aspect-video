@@ -19,3 +19,11 @@
 - Хэши библиотек: `vendor/SHA256SUMS`; хэши компонентов: `COMPS[].sha` в `js/extras.js`. После замены библиотеки: `(find vendor -type f ! -name SHA256SUMS | sort | xargs sha256sum > vendor/SHA256SUMS)`, затем скопировать новые хэши в `extras.js` и запустить `node tests/hashes.js <сайт>`.
 - На GitHub включи двухфакторную защиту и защиту ветки `main`: взлом репозитория опаснее любой дыры в коде.
 - Заголовки HSTS, COOP/COEP, X-Frame-Options и Permissions-Policy на GitHub Pages недоступны (`<meta>` их не принимает); нужен хостинг с файлом `_headers`, например Cloudflare Pages.
+
+## Проверки
+
+`tools/ci.sh` запускает все тесты (версии, хэши, дымовой, английский, блоки 1–5, возобновление, доступность). Нужны node, playwright, ffmpeg и axe-core. Видео для тестов лежат в `tests/fixtures/`, длинный ролик на 45 минут создаётся на месте.
+
+- `tools/ci.sh chrome` — то же, плюс `tests/chrome.js` в установленном Google Chrome (H.264, быстрое чтение H.264, AAC).
+- Браузер для отдельного теста: `AV_CHANNEL=chrome` или `AV_CHROME=/путь/к/chrome`. `AV_REQUIRE_AAC=1` считает отсутствие AAC ошибкой.
+- На GitHub те же проверки запускает `.github/workflows/test.yml` при каждом push.

@@ -1,10 +1,11 @@
 'use strict';
 /* Aspect Studio Video — ядро: константы, настройки, журнал ошибок, уведомления. */
-const APP_VERSION = '2.3.0';
+const APP_VERSION = '2.5.0';
 const STORE_KEY = 'aspect-video-v1';
 const ERRLOG_KEY = 'aspect-video-errlog', ERRLOG_MAX = 30;
 const SEEN_KEY = 'aspect-video-seen', COUNT_KEY = 'aspect-video-count', THEME_KEY = 'aspect-video-theme', TAB_KEY = 'aspect-video-tab';
 const PRESETS_KEY = 'aspect-video-presets', ACCENT_KEY = 'aspect-video-accent', ONB_KEY = 'aspect-video-onboarded', PIN_KEY = 'aspect-video-pins', FOLD_KEY = 'aspect-video-folds';
+const INSTALL_KEY = 'aspect-video-install', PERF_KEY = 'aspect-video-perf';
 const REPO = 'https://github.com/abubakrrustam94-crypto/aspect-video';
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -51,7 +52,7 @@ const DEF = {
   rw: 9, rh: 16, mode: 'blur', color: '#000000', faceTrack: false,
   rot: 0, flipH: false, flipV: false, speed: 1, fadeIn: 0, fadeOut: 0,
   mute: false, vol: 100, norm: false,
-  short: 1080, fps: 30, quality: 0.12,
+  short: 1080, fps: 30, quality: 0.12, target: 0,
   nameTpl: '{name}_{ratio}', translit: true, counter: false, toFolder: false,
   wmOn: false, wmType: 'text', wmText: '@mychannel', wmColor: '#ffffff', wmShadow: true,
   wmOpacity: 70, wmSize: 5, wmPos: 'br', wmMargin: 3, wmAngle: -25, wmWhen: 'all', wmSec: 5,
@@ -64,9 +65,9 @@ const DEF = {
 const SPEC = (() => {
   const I = (lo, hi) => ({ t: 'int', lo, hi }), N = (lo, hi) => ({ t: 'num', lo, hi }), E = list => ({ t: 'enum', list }), H = { t: 'hex' }, T = n => ({ t: 'str', n });
   return {
-    rw: I(1, 100), rh: I(1, 100), mode: E(['blur', 'mirror', 'color', 'crop']), color: H,
+    rw: I(1, 100), rh: I(1, 100), mode: E(['blur', 'mirror', 'color', 'smart', 'crop']), color: H,
     rot: E([0, 90, 180, 270]), speed: E([0.5, 0.75, 1, 1.5, 2]), fadeIn: N(0, 3), fadeOut: N(0, 3), vol: N(0, 200),
-    short: E([0, 480, 720, 1080, 1440, 2160]), fps: E([24, 30, 60]), quality: E([0.07, 0.12, 0.2]),
+    short: E([0, 480, 720, 1080, 1440, 2160]), fps: E([24, 30, 60]), quality: E([0.07, 0.12, 0.2]), target: E([0, 10, 25, 50, 100]),
     wmType: E(['text', 'image']), wmColor: H, wmOpacity: N(10, 100), wmSize: N(2, 20), wmMargin: N(0, 15), wmAngle: N(-60, 60), wmSec: N(1, 30),
     wmPos: E(['tl', 't', 'tr', 'l', 'c', 'r', 'bl', 'b', 'br', 'tile']), wmWhen: E(['all', 'first']),
     capPos: E(['top', 'mid', 'bot']), capSize: N(2, 12), capColor: H,

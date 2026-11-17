@@ -167,13 +167,21 @@
       try { fast = await makeFast(file); } catch (e) { why = (e && e.message) || String(e); fast = null; }
     } else if (opt.fast === false) why = 'выключено';
     else why = 'не MP4/MOV';
-    var failed = !fast, note = why;
+    var failed = !fast, note = why, checked = false;
     return {
       get kind() { return failed ? 'seek' : 'decoder'; },
       get note() { return note; },
       at: async function (t) {
         if (!failed) {
-          try { return await fast.at(t); }
+          try {
+            var cv = await fast.at(t);
+            if (!checked && video && video.videoWidth > 0 && cv.width > 0) {   // проверка поворота: пропорции кадра должны совпасть с тем, что показывает сам браузер
+              checked = true;
+              var a = cv.width / cv.height, b = video.videoWidth / video.videoHeight;
+              if (Math.abs(a / b - 1) > 0.03) throw new Error('ориентация не совпала с браузером (' + cv.width + '×' + cv.height + ' и ' + video.videoWidth + '×' + video.videoHeight + ')');
+            }
+            return cv;
+          }
           catch (e) {
             failed = true; note = 'ошибка быстрого чтения: ' + ((e && e.message) || e);
             if (window.logError) window.logError(e, 'быстрое чтение кадров');
