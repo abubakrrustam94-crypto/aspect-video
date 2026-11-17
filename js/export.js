@@ -282,7 +282,7 @@
           if (o.signal.aborted) throw abortErr();
           if (encErr) throw encErr;
           var ts = Math.min(g.start + (i / fps) * speed, Math.max(g.start, g.end - 0.001));
-          AV.renderAt(ctx, W, H, await fsv.at(ts), rr, ts, fi / fps);
+          AV.renderAt(ctx, W, H, await fsv.at(ts), rr, ts, fi / fps + (o.tOff || 0));
           var init = { timestamp: Math.round((fi * 1e6) / fps), duration: Math.round(1e6 / fps) }, frame;
           try { frame = new VideoFrame(canvas, Object.assign({ colorSpace: cs }, init)); } catch (e0) { frame = new VideoFrame(canvas, init); }
           venc.encode(frame, { keyFrame: fi % keyEvery === 0 });

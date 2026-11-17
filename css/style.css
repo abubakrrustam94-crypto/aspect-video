@@ -340,3 +340,11 @@ details.wn-rel .wn-ver { background: var(--md-sys-color-surface-container-highes
 .resume { margin: 0 0 14px; padding: 14px 16px; border-radius: 20px; background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container); display: flex; flex-direction: column; gap: 10px; }
 .resume[hidden] { display: none; }
 .resume p { margin: 0; font-size: .92rem; line-height: 1.4; }
+
+/* Подсказка по формату, проект, предпросмотр результата */
+.fmt-help { background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-on-surface); box-shadow: inset 4px 0 0 var(--md-sys-color-error); }
+.fmt-help .note { color: inherit; opacity: .9; }
+.cmd { display: block; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, currentColor 10%, transparent); font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .8rem; line-height: 1.45; word-break: break-all; user-select: all; }
+.clip-card { max-width: 440px; }
+.clip-video { width: 100%; max-height: 62vh; border-radius: 16px; background: #000; display: block; }
+#rotAll[hidden] { display: none; }

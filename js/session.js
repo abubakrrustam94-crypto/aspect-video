@@ -65,7 +65,7 @@
         v: 1, ts: Date.now(), groups: groups, done: [], savedFiles: [],
         items: items.map(function (it) {
           return { name: it.name, size: it.file.size, type: it.file.type, lastModified: it.file.lastModified,
-            start: it.start, end: it.end, cuts: it.cuts, caps: it.caps, tap: it.tap };
+            start: it.start, end: it.end, cuts: it.cuts, caps: it.caps, tap: it.tap, rot: it.rot, fh: it.fh, fv: it.fv };
         })
       };
       keepNames();

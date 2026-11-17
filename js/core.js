@@ -1,6 +1,6 @@
 'use strict';
 /* Aspect Studio Video — ядро: константы, настройки, журнал ошибок, уведомления. */
-const APP_VERSION = '2.2.5';
+const APP_VERSION = '2.3.0';
 const STORE_KEY = 'aspect-video-v1';
 const ERRLOG_KEY = 'aspect-video-errlog', ERRLOG_MAX = 30;
 const SEEN_KEY = 'aspect-video-seen', COUNT_KEY = 'aspect-video-count', THEME_KEY = 'aspect-video-theme', TAB_KEY = 'aspect-video-tab';

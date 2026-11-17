@@ -62,7 +62,7 @@
   applyView();
 
   /* ---------- Наборы настроек ---------- */
-  var KEEP = ['rw', 'rh', 'mode', 'color', 'rot', 'flipH', 'flipV', 'speed', 'fadeIn', 'fadeOut', 'mute', 'vol', 'norm', 'short', 'fps', 'quality',
+  var KEEP = ['rw', 'rh', 'mode', 'color', 'speed', 'fadeIn', 'fadeOut', 'mute', 'vol', 'norm', 'short', 'fps', 'quality',
     'nameTpl', 'translit', 'counter', 'wmOn', 'wmType', 'wmText', 'wmColor', 'wmShadow', 'wmOpacity', 'wmSize', 'wmPos', 'wmMargin', 'wmAngle', 'wmWhen', 'wmSec',
     'capPos', 'capSize', 'capColor', 'capBox', 'stab', 'format', 'faceMode'];
   var presets = jget(PRESETS_KEY, []);

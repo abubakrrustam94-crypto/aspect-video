@@ -5,7 +5,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; connect-src 'self' blob: data:; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, viewport-fit=cover">
-<meta name="av-version" content="2.2.5">
+<meta name="av-version" content="2.3.0">
 <meta name="theme-color" content="#0f0f14">
 <meta name="description" content="Меняет формат видео без обрезки: Reels, Shorts, пост 4:5, YouTube. Всё работает в браузере, видео никуда не загружается.">
 <title>Aspect Studio Video</title>
@@ -72,6 +72,24 @@
         <button type="button" class="btn btn-outlined btn-sm" id="resumeDrop">Забыть</button>
       </div>
       <input type="file" id="resumeFile" accept="video/*,.mp4,.mov,.m4v,.webm,.mkv" multiple hidden>
+    </section>
+    <section class="resume" id="projBar" aria-label="Открыть последний проект" hidden>
+      <p id="projText"></p>
+      <div class="row" style="margin:0">
+        <button type="button" class="btn btn-main btn-sm" id="projGo">Открыть проект</button>
+        <button type="button" class="btn btn-outlined btn-sm" id="projDrop">Забыть</button>
+      </div>
+      <input type="file" id="projFile" accept="video/*,.mp4,.mov,.m4v,.webm,.mkv,.avi,.3gp,.ts,.mts" multiple hidden>
+    </section>
+    <section class="resume fmt-help" id="fmtHelp" role="status" aria-label="Видео не открылось" hidden>
+      <p><b id="fmtHelpTitle"></b></p>
+      <p id="fmtHelpText"></p>
+      <p class="note" id="fmtHelpHow">Перевести в MP4 (H.264) можно бесплатно на компьютере (HandBrake, VLC) или в Termux командой:</p>
+      <code class="cmd" id="fmtHelpCmd" tabindex="0"></code>
+      <div class="row" style="margin:0">
+        <button type="button" class="btn btn-main btn-sm" id="fmtHelpCopy">Скопировать команду</button>
+        <button type="button" class="btn btn-outlined btn-sm" id="fmtHelpClose">Закрыть</button>
+      </div>
     </section>
     <section class="upload-zone" id="uploadZone" aria-label="Загрузка видео">
       <div class="upload-ic" aria-hidden="true">🎞️</div>
@@ -221,7 +239,9 @@
           <button type="button" class="btn btn-outlined btn-sm" id="rotR"><svg class="ic" aria-hidden="true"><use href="#i-rotr"/></svg> Вправо</button>
           <button type="button" class="btn btn-outlined btn-sm" id="flipH" aria-pressed="false"><svg class="ic" aria-hidden="true"><use href="#i-flip"/></svg> Отразить</button>
           <button type="button" class="btn btn-outlined btn-sm" id="flipV" aria-pressed="false"><svg class="ic" aria-hidden="true"><use href="#i-flipv"/></svg> Вверх ногами</button>
+          <button type="button" class="btn btn-tonal btn-sm" id="rotAll" hidden>Применить ко всем видео</button>
         </div>
+        <p class="note" id="rotNote">Поворот относится к выбранному видео. Новые видео берут последний выбранный поворот.</p>
         <div class="stack" style="margin-top:16px">
           <div>
             <span class="field-label">Скорость</span>
@@ -520,6 +540,7 @@
 <!-- Панель сохранения -->
 <aside class="dock" aria-label="Сохранение">
 <div class="toolbar" id="toolbar" hidden>
+  <button type="button" class="tb-btn" id="clipBtn"><svg class="ic" aria-hidden="true"><use href="#i-play"/></svg> <span>Показать 3 с</span></button>
   <button type="button" class="tb-btn" id="saveAllBtn" hidden><svg class="ic" aria-hidden="true"><use href="#i-save"/></svg> <span>Сохранить все</span></button>
   <button type="button" class="tb-btn primary" id="saveBtn"><svg class="ic" aria-hidden="true"><use href="#i-save"/></svg> <span>Сохранить видео</span></button>
 </div>
@@ -557,6 +578,14 @@
     <div class="onb-actions"><button type="button" class="btn btn-main" id="wnClose">Понятно</button></div>
   </div>
 </div>
+<div class="modal onb" id="clipDlg" role="dialog" aria-modal="true" aria-labelledby="clipTitle" hidden>
+  <div class="onb-card wn-card clip-card">
+    <h2 id="clipTitle">Так выглядит результат</h2>
+    <video id="clipVideo" class="clip-video" controls playsinline loop></video>
+    <p class="note" id="clipNote"></p>
+    <div class="onb-actions"><button type="button" class="btn btn-main" id="clipClose">Закрыть</button></div>
+  </div>
+</div>
 <div class="modal onb" id="howDlg" role="dialog" aria-modal="true" aria-labelledby="howTitle" hidden>
   <div class="onb-card wn-card">
     <h2 id="howTitle">Как это работает</h2>
@@ -575,6 +604,7 @@
 <script src="js/decode.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/session.js"></script>
+<script src="js/project.js"></script>
 <script src="js/export.js"></script>
 <script src="js/app.js"></script>
 <script src="js/extras.js"></script>

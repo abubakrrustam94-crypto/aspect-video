@@ -14,9 +14,10 @@
     return { on: S.wmOn, type: S.wmType, text: S.wmText, color: S.wmColor, shadow: S.wmShadow, opacity: S.wmOpacity,
       size: S.wmSize, pos: S.wmPos, margin: S.wmMargin, angle: S.wmAngle, when: S.wmWhen, sec: S.wmSec };
   }
-  function outSize(it) {
-    var o = AV.orientedSize(it.vw, it.vh, S.rot);
-    return AV.computeSize(S.rw, S.rh, S.format === 'gif' ? Math.min(S.short || 480, 480) : S.short, o.w, o.h);
+  /* shortOver и fmtOver нужны предпросмотру результата: он меньше и всегда MP4/WebM */
+  function outSize(it, shortOver, fmtOver) {
+    var o = AV.orientedSize(it.vw, it.vh, it.rot), f = fmtOver || S.format;
+    return AV.computeSize(S.rw, S.rh, shortOver != null ? shortOver : (f === 'gif' ? Math.min(S.short || 480, 480) : S.short), o.w, o.h);
   }
   /* отрезки исходника, которые попадут в результат: целый фрагмент или куски между вырезанными паузами */
   function segsOf(it) { return it.cuts && it.cuts.length ? it.cuts : [[it.start, it.end]]; }
@@ -29,7 +30,7 @@
   }
   function rparams(it) {
     return {
-      rot: S.rot, fh: S.flipH, fv: S.flipV, mode: S.mode, color: S.color,
+      rot: it.rot, fh: it.fh, fv: it.fv, mode: S.mode, color: S.color,
       focusAt: S.mode === 'crop' && S.faceTrack && it.track ? function (t) { return AV.focusAt(it.track, t); } : null,
       stab: S.stab && stabOk(it) ? it.stab : null,
       caps: it.caps && it.caps.length ? it.caps : null,
@@ -68,8 +69,10 @@
     Array.prototype.forEach.call($('#presets').children, function (c) { c.classList.toggle('active', c.dataset.id === S.rw + ':' + S.rh); });
     if (document.activeElement !== $('#cw')) $('#cw').value = S.rw;
     if (document.activeElement !== $('#ch')) $('#ch').value = S.rh;
-    $('#flipH').setAttribute('aria-pressed', S.flipH); $('#flipH').classList.toggle('active', S.flipH);
-    $('#flipV').setAttribute('aria-pressed', S.flipV); $('#flipV').classList.toggle('active', S.flipV);
+    var cit = item(), fhOn = cit ? cit.fh : S.flipH, fvOn = cit ? cit.fv : S.flipV;
+    $('#flipH').setAttribute('aria-pressed', fhOn); $('#flipH').classList.toggle('active', fhOn);
+    $('#flipV').setAttribute('aria-pressed', fvOn); $('#flipV').classList.toggle('active', fvOn);
+    $('#rotAll').hidden = Q.length < 2;
     $('#colorRow').hidden = S.mode !== 'color';
     $('#faceRow').hidden = S.mode !== 'crop';
     $('#tapNote').hidden = !(S.faceMode === 'tap' && S.faceTrack);
@@ -90,7 +93,7 @@
     updateEstimate();
   }
   function afterSet(k) {
-    if (k === 'rot' || k === 'flipH' || k === 'flipV' || k === '*') Q.forEach(function (it) { it.track = null; it.noFace = false; it.stab = null; it.tap = null; });
+    if (k === '*') Q.forEach(function (it) { it.track = null; it.noFace = false; it.stab = null; });   // поворот у каждого видео свой и от наборов не меняется
     if (k === 'faceMode') Q.forEach(function (it) { it.track = null; it.noFace = false; });
     if (k === 'faceMode' && S.faceMode === 'tap' && S.faceTrack) toast('Нажмите на нужного человека в превью.');
     if (k === 'faceMode' && S.mode === 'crop' && S.faceTrack && item() && S.faceMode !== 'tap') runFaces(item());
@@ -201,21 +204,37 @@
       v.src = url;
     });
   }
+  /* Подсказка, почему видео не открылось и как его перевести */
+  var helpCmd = '';
+  function showFmtHelp(d, n) {
+    helpCmd = d.cmd;
+    $('#fmtHelpTitle').textContent = d.title;
+    $('#fmtHelpText').textContent = d.text + (n > 1 ? ' Не открылось файлов: ' + n + '.' : '');
+    $('#fmtHelpCmd').textContent = d.cmd;
+    $('#fmtHelp').hidden = false;
+  }
+  $('#fmtHelpClose').addEventListener('click', function () { $('#fmtHelp').hidden = true; });
+  $('#fmtHelpCopy').addEventListener('click', async function () {
+    try { await navigator.clipboard.writeText(helpCmd); toast('Команда скопирована. В Termux сначала: pkg install ffmpeg'); }
+    catch (e) { toast('Не удалось скопировать: выделите команду вручную.', true); }
+  });
   async function addFiles(files) {
     var list = Array.prototype.filter.call(files, function (f) { return (f.type && f.type.indexOf('video/') === 0) || VIDEO_EXT.test(f.name); });
     if (!list.length) { toast('Это не видео. Выберите видеофайл.', true); return; }
-    var first = Q.length === 0, added = 0;
+    var first = Q.length === 0, added = 0, failed = [];
     for (var i = 0; i < list.length; i++) {
       var f = list[i];
       try {
         var p = await probe(f);
-        Q.push({ id: ++uid, file: f, url: p.url, name: f.name, vw: p.vw, vh: p.vh, dur: p.dur, start: 0, end: p.dur, track: null, noFace: false, caps: [], cuts: null, stab: null, tap: null, sound: null });
+        Q.push({ id: ++uid, file: f, url: p.url, name: f.name, vw: p.vw, vh: p.vh, dur: p.dur, start: 0, end: p.dur, track: null, noFace: false, caps: [], cuts: null, stab: null, tap: null, sound: null, rot: S.rot, fh: S.flipH, fv: S.flipV });
         added++;
       } catch (err) {
         toast('Не удалось открыть «' + f.name + '». Так бывает с HEVC/H.265, AVI и MKV: переведите в MP4 (H.264) или откройте в Chrome.', true);
         logError('Не открылся файл (' + (f.type || 'тип неизвестен') + ', ' + fmtBytes(f.size) + '): ' + (err && err.message), 'файл');
+        failed.push(f);
       }
     }
+    if (failed.length) AV.diagnose(failed[failed.length - 1]).then(function (d) { showFmtHelp(d, failed.length); }).catch(function () { /* подсказка не обязательна */ });
     if (!added) return;
     $('#uploadZone').hidden = true; $('#resumeBar').hidden = true;
     $('#previewCard').hidden = false; $('#queueCard').hidden = false; $('#toolbar').hidden = false;
@@ -389,10 +408,22 @@
   });
 
   /* ---------- поворот ---------- */
-  $('#rotL').addEventListener('click', function () { if (!busy) set('rot', (S.rot + 270) % 360); });
-  $('#rotR').addEventListener('click', function () { if (!busy) set('rot', (S.rot + 90) % 360); });
-  $('#flipH').addEventListener('click', function () { if (!busy) set('flipH', !S.flipH); });
-  $('#flipV').addEventListener('click', function () { if (!busy) set('flipV', !S.flipV); });
+  /* поворот относится к выбранному видео; последний выбор запоминается как значение для новых видео */
+  function orientChanged(it) {
+    it.track = null; it.noFace = false; it.stab = null; it.tap = null;
+    set('rot', it.rot, true); set('flipH', it.fh, true); set('flipV', it.fv, true);
+    syncUI(); updateInfo(); draw();
+    if (S.mode === 'crop' && S.faceTrack && S.faceMode !== 'tap') runFaces(it);
+  }
+  $('#rotL').addEventListener('click', function () { var it = item(); if (!busy && it) { it.rot = (it.rot + 270) % 360; orientChanged(it); } });
+  $('#rotR').addEventListener('click', function () { var it = item(); if (!busy && it) { it.rot = (it.rot + 90) % 360; orientChanged(it); } });
+  $('#flipH').addEventListener('click', function () { var it = item(); if (!busy && it) { it.fh = !it.fh; orientChanged(it); } });
+  $('#flipV').addEventListener('click', function () { var it = item(); if (!busy && it) { it.fv = !it.fv; orientChanged(it); } });
+  $('#rotAll').addEventListener('click', function () {
+    var c = item(); if (!c || busy) return;
+    Q.forEach(function (it) { if (it !== c) { it.rot = c.rot; it.fh = c.fh; it.fv = c.fv; it.track = null; it.noFace = false; it.stab = null; it.tap = null; } });
+    syncUI(); updateInfo(); renderQueue(); toast('Поворот применён ко всем видео: ' + Q.length);
+  });
 
   /* ---------- водяной знак ---------- */
   $('#wmPick').addEventListener('click', function () { $('#wmFile').click(); });
@@ -425,7 +456,7 @@
       await new Promise(function (res, rej) { fv.onloadeddata = res; fv.onerror = rej; setTimeout(function () { rej(new Error('timeout')); }, 15000); });
       var track = await AV.trackFaces({
         start: 0, end: it.dur, step: Math.max(0.5, it.dur / 120), signal: sig || ac.signal, mode: S.faceMode, tap: it.tap,
-        grab: async function (t) { await AV.seekTo(fv, t); var o = AV.getOriented(fv, S.rot, S.flipH, S.flipV); return o; },
+        grab: async function (t) { await AV.seekTo(fv, t); var o = AV.getOriented(fv, it.rot, it.fh, it.fv); return o; },
         onProgress: function (f) { s.textContent = 'Ищу лицо: ' + Math.round(f * 100) + '%'; }
       });
       it.track = track; it.noFace = !track;
@@ -515,7 +546,7 @@
       var level = S.stab, from = it.start, to = it.end;
       var st = await AV.analyzeStab({
         start: from, end: to, level: level, signal: busy && abort ? abort.signal : undefined,
-        grab: async function (t) { await AV.seekTo(fv, t); return AV.getOriented(fv, S.rot, S.flipH, S.flipV); },
+        grab: async function (t) { await AV.seekTo(fv, t); return AV.getOriented(fv, it.rot, it.fh, it.fv); },
         onProgress: function (f) { s.textContent = 'Считаю сдвиги: ' + Math.round(f * 100) + '%'; if (busy) setProgress(stabTitle, f * 0.2, 'Стабилизация: ' + Math.round(f * 100) + '%'); }
       });
       it.stab = { track: st.track, zoom: st.zoom, level: level, from: from, to: to };
@@ -654,7 +685,7 @@
   }
 
   /* group — одно видео или несколько (склейка) */
-  async function exportGroup(group, title) {
+  async function exportGroup(group, title, clip) {
     var i, it;
     for (i = 0; i < group.length; i++) {
       it = group[i];
@@ -662,16 +693,21 @@
       if (S.stab && !stabOk(it)) { stabTitle = title; setProgress(title, 0, 'Стабилизация…'); await runStab(it); }
       if (abort.signal.aborted) { var ae = new Error('Отменено'); ae.aborted = true; throw ae; }
     }
-    var fmt = S.format, o = outSize(group[0]), dur = groupDur(group), fps = outFps(dur), segs = [];
+    /* clip = { start, end }: короткий предпросмотр результата. Он меньше, без звука и без затуханий, всегда MP4 (или WebM, если MP4 нет) */
+    var fmt = clip ? (FS && FS.mp4 === false ? 'webm' : 'mp4') : S.format;
+    var o = outSize(group[0], clip ? Math.min(S.short || 480, 480) : null, fmt);
+    var dur = clip ? (clip.end - clip.start) / S.speed : groupDur(group), fps = clip ? Math.min(S.fps, 30) : outFps(dur), segs = [];
     group.forEach(function (g) {
       var r = rparams(g);
+      if (clip) { segs.push({ file: g.file, start: clip.start, end: clip.end, dur: g.dur, r: r, load: function () { return exportVideoFor(g); } }); return; }
       segsOf(g).forEach(function (sg) {
         segs.push({ file: g.file, start: sg[0], end: sg[1], dur: g.dur, r: r, load: function () { return exportVideoFor(g); } });
       });
     });
     var common = {
       format: fmt, segs: segs, W: o.w, H: o.h, fps: fps, bitrate: bitrateFor(o, fps), speed: S.speed,
-      mute: S.mute, vol: S.vol / 100, norm: S.norm, fadeIn: S.fadeIn, fadeOut: S.fadeOut,
+      mute: clip ? true : S.mute, vol: S.vol / 100, norm: S.norm, fadeIn: clip ? 0 : S.fadeIn, fadeOut: clip ? 0 : S.fadeOut,
+      tOff: clip ? (clip.start - group[0].start) / S.speed : 0,
       /* для записи в реальном времени (только один цельный отрезок) */
       video: video, file: group[0].file, start: segs[0].start, end: segs[0].end, r: segs[0].r,
       fast: window.AV_NOFAST ? false : undefined, audioStream: window.AV_NOSTREAM ? false : undefined,   // только для проверок
@@ -758,6 +794,46 @@
   }
   $('#saveBtn').addEventListener('click', function () { runQueue(false); });
   $('#saveAllBtn').addEventListener('click', function () { runQueue(true); });
+
+  /* ---------- предпросмотр результата ---------- */
+  var clipUrl = '', clipOpener = null;
+  function clipClose() {
+    var v = $('#clipVideo'); v.pause(); v.removeAttribute('src'); v.load();
+    if (clipUrl) { URL.revokeObjectURL(clipUrl); clipUrl = ''; }
+    $('#clipDlg').hidden = true;
+    if (clipOpener && clipOpener.focus) clipOpener.focus();
+  }
+  $('#clipClose').addEventListener('click', clipClose);
+  $('#clipDlg').addEventListener('click', function (e) { if (e.target === $('#clipDlg')) clipClose(); });
+  $('#clipDlg').addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { e.stopPropagation(); clipClose(); }
+    else if (e.key === 'Tab') {
+      var f = [$('#clipVideo'), $('#clipClose')], i = f.indexOf(document.activeElement);
+      e.preventDefault(); f[(i + (e.shiftKey ? -1 : 1) + f.length) % f.length].focus();
+    }
+  });
+  async function runClip() {
+    var it = item(); if (busy || !it) return;
+    var t = video.currentTime; if (t < it.start || t >= it.end - 0.25) t = it.start;
+    var end = Math.min(it.end, t + 3 * S.speed);
+    clipOpener = document.activeElement;
+    video.pause(); abort = new AbortController();
+    setBusy(true); showProgress(true); setProgress('Предпросмотр', 0, 'Подготовка…'); lockOn();
+    try {
+      var res = await exportGroup([it], 'Предпросмотр', { start: t, end: end });
+      var v = $('#clipVideo'); clipUrl = URL.createObjectURL(res.blob); v.src = clipUrl;
+      $('#clipNote').textContent = 'Показано ' + fmtTime(end - t) + ' источника с места ' + fmtTime(t) + ': без звука и в уменьшенном размере. Итоговый файл будет в выбранном формате и размере.' +
+        (res.warnings && res.warnings.length ? ' ' + res.warnings.join(' ') : '');
+      $('#clipDlg').hidden = false; $('#clipClose').focus(); v.play().catch(function () { /* ждём нажатия */ });
+    } catch (err) {
+      if (err && err.aborted) toast('Предпросмотр отменён.');
+      else { logError(err, 'предпросмотр'); toast('Не получилось: ' + ((err && err.message) || err), true); }
+    } finally {
+      releaseExportVideos(); lockOff(); showProgress(false); setBusy(false);
+      video.currentTime = Math.max(it.start, t); draw();
+    }
+  }
+  $('#clipBtn').addEventListener('click', runClip);
 
   /* ---------- результаты ---------- */
   function addResult(r) {
@@ -853,6 +929,7 @@
       var it = Q[i];
       it.start = Math.max(0, Math.min(sv.start, it.dur)); it.end = Math.max(it.start + 0.1, Math.min(sv.end, it.dur));
       it.cuts = sv.cuts || null; it.caps = sv.caps || []; it.tap = sv.tap || null;
+      it.rot = [0, 90, 180, 270].indexOf(sv.rot) >= 0 ? sv.rot : it.rot; it.fh = sv.fh === true; it.fv = sv.fv === true;
     });
     var okDone = [];
     for (var k = 0; k < m.done.length; k++) {
@@ -870,12 +947,57 @@
     await AV.session.clear(); AV.cleanOpfs(); resumeRec = null; $('#resumeBar').hidden = true; toast('Журнал удалён.');
   });
 
+  /* ---------- последний проект ---------- */
+  var projArmed = false, projLast = '', projRec = null;
+  function projSnap() {
+    return { v: 1, ts: Date.now(), items: Q.map(function (it) {
+      return { name: it.name, size: it.file.size, start: it.start, end: it.end, cuts: it.cuts, caps: it.caps, tap: it.tap, rot: it.rot, fh: it.fh, fv: it.fv };
+    }) };
+  }
+  setInterval(function () {                               // раз в пару секунд сверяем и пишем только если что-то поменялось
+    if (!projArmed) { if (Q.length) projArmed = true; else return; }
+    if (!Q.length) { if (projLast) { projLast = ''; AV.project.clear(); } return; }
+    var snap = projSnap(), key = JSON.stringify(snap.items);
+    if (key !== projLast) { projLast = key; AV.project.save(snap); }
+  }, 2500);
+  async function initProject() {
+    var m = await AV.project.load();
+    if (!m || Q.length || resumeRec) return;
+    projRec = m;
+    $('#projText').textContent = 'Последний проект, файлов: ' + m.items.length + ' (' + m.items.slice(0, 3).map(function (x) { return x.name; }).join(', ') + (m.items.length > 3 ? '…' : '') +
+      '). Выберите те же файлы, и обрезка, подписи и повороты вернутся. Сами видео сайт не хранит.';
+    $('#projBar').hidden = false;
+  }
+  $('#projGo').addEventListener('click', function () { $('#projFile').value = ''; $('#projFile').click(); });
+  $('#projFile').addEventListener('change', async function () {
+    var m = projRec, picked = Array.prototype.slice.call($('#projFile').files); if (!m || !picked.length || busy) return;
+    var ordered = [], metas = [];
+    m.items.forEach(function (sv) {
+      var f = picked.filter(function (p) { return p.name === sv.name && p.size === sv.size && ordered.indexOf(p) < 0; })[0];
+      if (f) { ordered.push(f); metas.push(sv); }
+    });
+    if (!ordered.length) { toast('Среди выбранных нет файлов проекта. Нужны те же видео.', true); return; }
+    $('#projBar').hidden = true; projRec = null;
+    await addFiles(ordered);
+    ordered.forEach(function (f, i) {
+      var it = Q.filter(function (q) { return q.file === f; })[0], sv = metas[i]; if (!it) return;
+      it.start = Math.max(0, Math.min(sv.start, it.dur - 0.2)); it.end = Math.max(it.start + 0.2, Math.min(sv.end == null ? it.dur : sv.end, it.dur));
+      it.cuts = sv.cuts ? sv.cuts.filter(function (c) { return c[0] < it.dur; }) : null; if (it.cuts && !it.cuts.length) it.cuts = null;
+      it.caps = sv.caps.filter(function (c) { return c.start < it.dur; }); it.tap = sv.tap;
+      it.rot = sv.rot; it.fh = sv.fh; it.fv = sv.fv; it.track = null; it.noFace = false; it.stab = null;
+    });
+    var c = item(); if (c) { syncTrim(c); video.currentTime = c.start; syncUI(); updateInfo(); updateEstimate(); renderCaps(); draw(); }
+    toast(ordered.length < m.items.length ? 'Открыто видео: ' + ordered.length + ' из ' + m.items.length + '. Остальных среди выбранных не нашлось.' : 'Проект открыт.');
+  });
+  $('#projDrop').addEventListener('click', async function () { await AV.project.clear(); projRec = null; $('#projBar').hidden = true; toast('Проект забыт.'); });
+  window.AVProjectReset = function () { return AV.project.clear(); };
+
   /* ---------- старт ---------- */
   $('#folderCard').hidden = !window.showDirectoryPicker;
   if (!window.showDirectoryPicker && S.toFolder) set('toFolder', false, true);
   setTab(['frame', 'video', 'wm', 'export', 'components', 'about'].indexOf(ls.get(TAB_KEY)) >= 0 ? ls.get(TAB_KEY) : 'frame');
   syncUI();
-  initResume().then(function () { return AV.cleanOpfs(); }, function () { return AV.cleanOpfs(); });
+  initResume().then(function () { return AV.cleanOpfs(); }, function () { return AV.cleanOpfs(); }).then(initProject, initProject);
   window.AVApp = {
     Q: function () { return Q; }, select: select, addFiles: addFiles, runQueue: runQueue, results: function () { return results; },
     runFaces: function () { return runFaces(item()); }, runStab: function () { return runStab(item()); }, formatSupport: function () { return FS; }, outSize: function () { return outSize(item()); }, setTab: setTab, hasJournal: function () { return !!resumeRec; }

@@ -31,6 +31,20 @@
   AV.looksLikeMp4 = function (file) {
     return /\.(mp4|m4v|mov|m4a)$/i.test(file.name || '') || /mp4|quicktime|m4v/i.test(file.type || '');
   };
+  /* Почему видео не открылось: определяем кодек и подсказываем, что делать. Файл никуда не уходит. */
+  AV.diagnose = async function (file) {
+    var ext = ((/\.([a-z0-9]+)$/i.exec(file.name || '') || [])[1] || '').toLowerCase(), codec = '', t, x;
+    if (AV.looksLikeMp4(file)) {
+      try { var mp = await AV.openMp4(file), v = mp.info.videoTracks[0]; codec = v ? String(v.codec || '') : ''; } catch (e) { /* не разобрался: скажем общее */ }
+    }
+    var c = codec.toLowerCase();
+    if (/^(hvc1|hev1)/.test(c)) { t = 'Видео в формате H.265 (HEVC)'; x = 'Так снимают многие новые телефоны. Этот браузер не умеет его показывать. Переведите видео в H.264 (MP4) или в настройках камеры включите «Наиболее совместимый» формат.'; }
+    else if (/^av01/.test(c)) { t = 'Видео в формате AV1'; x = 'Этот браузер или устройство не умеет его показывать. Переведите видео в H.264 (MP4) или откройте сайт в свежем Chrome.'; }
+    else if (/^(apch|apcn|apcs|apco|ap4h|ap4x)/.test(c)) { t = 'Видео в формате ProRes'; x = 'Браузеры не показывают ProRes. Переведите видео в H.264 (MP4).'; }
+    else if (/^(mkv|avi|ts|mts|m2ts|wmv|flv|3gp|ogv)$/.test(ext)) { t = 'Файл .' + ext + ': этот браузер открывает такой формат не всегда'; x = 'Внутри может быть видео, которое браузер не умеет показывать. Переведите его в MP4 (H.264): так оно откроется везде.'; }
+    else { t = 'Видео не открылось'; x = 'Возможно, файл повреждён или записан в формате, который этот браузер не умеет показывать (H.265, AV1, ProRes). Попробуйте перевести его в MP4 (H.264).'; }
+    return { title: t, text: x, codec: codec, ext: ext, cmd: 'ffmpeg -i input.' + (ext || 'mov') + ' -c:v libx264 -crf 20 -pix_fmt yuv420p -c:a aac -movflags +faststart output.mp4' };
+  };
   /* Описание кодека (avcC, hvcC, av1C) без заголовка бокса */
   AV.codecDescription = function (m, entry) {
     var box = entry.avcC || entry.hvcC || entry.av1C || entry.vvcC;
