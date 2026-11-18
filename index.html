@@ -5,7 +5,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; connect-src 'self' blob: data:; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, viewport-fit=cover">
-<meta name="av-version" content="2.5.0">
+<meta name="av-version" content="2.5.1">
 <meta name="theme-color" content="#0f0f14">
 <meta name="description" content="Меняет формат видео без обрезки: Reels, Shorts, пост 4:5, YouTube. Всё работает в браузере, видео никуда не загружается.">
 <title>Aspect Studio Video</title>
@@ -582,13 +582,19 @@
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <div class="modal onb" id="onboard" role="dialog" aria-modal="true" aria-labelledby="onbTitle" hidden>
-  <div class="onb-card">
-    <div class="onb-ic" id="onbIc" aria-hidden="true"></div>
-    <h2 id="onbTitle"></h2>
-    <p id="onbText"></p>
+  <div class="onb-card onb2">
+    <div class="onb-top">
+      <span class="onb-step" id="onbStep"></span>
+      <button type="button" class="btn btn-outlined btn-sm" id="onbSkip">Пропустить</button>
+    </div>
+    <div class="onb-hero" aria-hidden="true"><span class="onb-ic" id="onbIc"></span></div>
+    <div class="onb-body" id="onbBody">
+      <h2 id="onbTitle"></h2>
+      <p id="onbText"></p>
+    </div>
     <div class="onb-dots" id="onbDots" aria-hidden="true"></div>
     <div class="onb-actions">
-      <button type="button" class="btn btn-outlined" id="onbSkip">Пропустить</button>
+      <button type="button" class="btn btn-outlined" id="onbBack" hidden>Назад</button>
       <button type="button" class="btn btn-main" id="onbNext">Далее</button>
     </div>
   </div>
@@ -613,7 +619,10 @@
 </div>
 <div class="modal onb" id="howDlg" role="dialog" aria-modal="true" aria-labelledby="howTitle" hidden>
   <div class="onb-card wn-card">
-    <h2 id="howTitle">Как это работает</h2>
+    <div class="wn-top">
+      <span class="wn-ic" aria-hidden="true"><svg class="ic"><use href="#i-shield"/></svg></span>
+      <div><h2 id="howTitle">Как это работает</h2><p class="wn-sub">Что происходит с твоими видео</p></div>
+    </div>
     <div class="wn-list how-list" id="howList" tabindex="0"></div>
     <div class="onb-actions"><button type="button" class="btn btn-main" id="howClose">Понятно</button></div>
   </div>

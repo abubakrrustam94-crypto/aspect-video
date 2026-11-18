@@ -142,15 +142,19 @@
   ];
   var step = 0, opener = null;
   function onbRender() {
-    var s = STEPS[step];
+    var s = STEPS[step], last = step === STEPS.length - 1;
     $('#onbIc').replaceChildren(svgIcon(s[0]));
     $('#onbTitle').textContent = s[1]; $('#onbText').textContent = s[2];
-    $('#onbDots').replaceChildren.apply($('#onbDots'), STEPS.map(function (_, i) { return el('i', i === step ? 'on' : ''); }));
-    $('#onbNext').textContent = step === STEPS.length - 1 ? 'Понятно' : 'Далее';
-    $('#onbSkip').hidden = step === STEPS.length - 1;
+    $('#onbStep').textContent = (step + 1) + ' / ' + STEPS.length;
+    $('#onbDots').replaceChildren.apply($('#onbDots'), STEPS.map(function (_, i) { return el('i', i === step ? 'on' : i < step ? 'done' : ''); }));
+    $('#onbDots').style.setProperty('--n', STEPS.length);
+    $('#onbNext').textContent = last ? 'Понятно' : 'Далее';
+    $('#onbSkip').hidden = last; $('#onbBack').hidden = step === 0;
+    ['#onbIc', '#onbBody'].forEach(function (q) { var n = $(q); n.style.animation = 'none'; void n.offsetWidth; n.style.animation = ''; });   // анимация появления на каждом шаге
   }
   function onbOpen() { opener = document.activeElement; step = 0; onbRender(); $('#onboard').hidden = false; $('#onbNext').focus(); }
   function onbClose() { $('#onboard').hidden = true; ls.set(ONB_KEY, '1'); if (opener && opener.focus) opener.focus(); }
+  $('#onbBack').addEventListener('click', function () { if (step > 0) { step--; onbRender(); } });
   $('#onbNext').addEventListener('click', function () { if (step >= STEPS.length - 1) onbClose(); else { step++; onbRender(); } });
   $('#onbSkip').addEventListener('click', onbClose);
   $('#helpBtn').addEventListener('click', onbOpen);

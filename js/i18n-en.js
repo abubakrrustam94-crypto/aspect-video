@@ -638,4 +638,9 @@ window.I18N_EN = {
 "После первого сохранения сайт предлагает установить его как приложение (если браузер это умеет).": "After the first save the site offers to install it as an app (if the browser can).",
 "Журнал скорости на вкладке «О программе»: сколько занимало каждое сохранение. Хранится только на устройстве.": "A speed log on the “About” tab: how long each save took. Stored on the device only.",
 "Автоматические проверки на GitHub (Actions), включая тест в настоящем Chrome с H.264 и AAC.": "Automatic checks on GitHub (Actions), including a test in real Chrome with H.264 and AAC.",
+"Назад": "Back",
+"Что происходит с твоими видео": "What happens to your videos",
+"Новый дизайн окон": "New window design",
+"«Как это работает»: карточки со значками, главное про приватность выделено, на телефоне окно выезжает снизу.": "“How it works”: cards with icons, the key privacy point is highlighted, and on a phone the window slides up from the bottom.",
+"«Показать обучение»: номер шага, большая иллюстрация, полоса прогресса, кнопка «Назад» и плавная смена шагов.": "“Show tutorial”: step number, a large illustration, a progress bar, a “Back” button and smooth step changes.",
 };

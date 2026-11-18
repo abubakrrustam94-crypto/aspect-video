@@ -21,7 +21,7 @@ const srv = http.createServer((q, r) => { let p = path.join(root, decodeURICompo
     await pg.setInputFiles('#fileInput', [vid]); await pg.waitForSelector('#previewCard:not([hidden])'); await pg.waitForTimeout(700);
     await pg.click('#settingsTabs [data-tab="frame"]'); await run(pg, scheme + ' с видео frame');
     await pg.click('#settingsTabs [data-tab="about"]'); await pg.click('#wnOpenBtn'); await pg.waitForTimeout(300); await run(pg, scheme + ' окно «Что нового»'); await pg.click('#wnClose');
-    await pg.click('#onbBtn'); await run(pg, scheme + ' обучение'); await pg.click('#onbSkip').catch(() => {});
+    await pg.click('#onbBtn'); await pg.waitForTimeout(900); await run(pg, scheme + ' обучение'); await pg.click('#onbSkip').catch(() => {});
     await ctx.close();
   }
   console.log(total ? 'НАРУШЕНИЙ: ' + total : 'ВСЁ ЧИСТО'); await b.close(); srv.close();
