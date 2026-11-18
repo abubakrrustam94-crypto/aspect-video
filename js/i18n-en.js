@@ -656,4 +656,9 @@ window.I18N_EN = {
 "Выбор папки": "Folder picker",
 "Журнал ошибок": "Error log",
 "Журнал ошибок переделан: блок «Об устройстве» с отметками возможностей, понятный статус и записи-карточки, которые разворачиваются. Копирование и «Сообщить о проблеме» по-прежнему отдают полный текст.": "The error log is redone: an “About the device” block with capability marks, a clear status and expandable entry cards. Copy and “Report a problem” still give the full text.",
+"Аудит": "Audit",
+"«Выровнять громкость»: усиление считается один раз на весь ролик, а не на каждый кусок после вырезов, поэтому тихие и громкие части больше не выравниваются друг под друга.": "“Normalize volume”: the gain is now calculated once for the whole clip rather than for each piece after cuts, so quiet and loud parts are no longer levelled to each other.",
+"Кнопки «Забыть» и «Не сейчас» в тёмной теме были плохо читаемы, исправлено.": "The “Forget” and “Not now” buttons were hard to read in the dark theme; fixed.",
+"Сайт не показывается, если его встроили в чужую страницу.": "The site is not shown if it is embedded in another page.",
+"Добавлен тест на странные файлы и испорченные данные в хранилищах.": "Added a test for odd files and corrupted data in storage.",
 };

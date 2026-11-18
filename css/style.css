@@ -430,3 +430,4 @@ details.wn-rel .wn-ver { background: var(--md-sys-color-surface-container-highes
 .err-item[open] .err-first { white-space: normal; }
 .err-msg { margin: 0; padding: 0 14px 12px; max-height: 200px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .72rem; line-height: 1.45; user-select: text; }
 #errLogBox .row { margin-top: 12px; }
+.resume .btn-outlined { color: inherit; border-color: color-mix(in srgb, currentColor 45%, transparent); }

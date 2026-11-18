@@ -276,7 +276,7 @@
         var fsv = await frames(g, vid); feeder = null;
         if (audioOn) {
           var dr = await getAudio(g);
-          feeder = await makeSegAudio(aenc, function () { return aerr; }, dr && dr.open ? dr : null, g, ns[s2] / fps, sampleOff, o, outDur, speed);
+          feeder = await makeSegAudio(aenc, function () { return aerr; }, dr && dr.open ? dr : null, g, ns[s2] / fps, sampleOff, o, outDur, speed, segs);
         }
         for (var i = 0; i < ns[s2]; i++) {
           if (o.signal.aborted) throw abortErr();
@@ -357,25 +357,34 @@
 
   /* Звук одного отрезка: вырезаем, меняем скорость, громкость, затухание, приводим к 48 кГц стерео, кодируем кусками.
      au = null → тишина нужной длины. Звук читается подряд небольшими блоками, поэтому длинные ролики не требуют памяти. */
-  async function makeSegAudio(aenc, getErr, au, g, segOut, off, o, outDur, speed) {
+  async function makeSegAudio(aenc, getErr, au, g, segOut, off, o, outDur, speed, allSegs) {
     var SR = 48000, CH = 4096, len = Math.max(1, Math.round(segOut * SR)), gain = Math.max(0, o.vol);
     var sr = au ? au.sr : SR, s0 = Math.max(0, Math.floor(g.start * sr)), s1 = Math.floor(g.end * sr);
-    if (au && o.norm) {                                // первый проход: меряем громкость (LUFS) и пик, подгоняем к −14 LUFS, но без перегруза
-      var rd = au.open(g.start), peak = 0, blk, meter = AV.lufsMeter(sr);
-      try {
-        while ((blk = await rd.next())) {
-          if (o.signal.aborted) throw abortErr();
-          if (blk.pos >= s1) break;
-          for (var cc = 0; cc < blk.ch.length; cc++) {
-            var d = blk.ch[cc], from = Math.max(0, s0 - blk.pos), to = Math.min(d.length, s1 - blk.pos);
-            for (var p = from; p < to; p += 2) { var v = d[p] < 0 ? -d[p] : d[p]; if (v > peak) peak = v; }
-          }
-          var fl = Math.max(0, s0 - blk.pos), tl = Math.min(blk.ch[0].length, s1 - blk.pos);
-          if (tl > fl) meter.push(blk.ch[0], blk.ch[Math.min(1, blk.ch.length - 1)], fl, tl);
+    if (au && o.norm) {
+      /* Громкость меряем один раз на весь исходный файл по всем его кускам и применяем одно усиление: иначе после вырезов
+         тихие и громкие куски одного ролика получили бы разное усиление. Пик ограничивает усиление, чтобы не было перегруза. */
+      o.normGain = o.normGain || new Map();
+      if (!o.normGain.has(g.file)) {
+        var peak = 0, blk, meter = AV.lufsMeter(sr), sibs = (allSegs || [g]).filter(function (x) { return x.file === g.file; });
+        for (var si = 0; si < sibs.length; si++) {
+          var q0 = Math.max(0, Math.floor(sibs[si].start * sr)), q1 = Math.floor(sibs[si].end * sr), rd = au.open(sibs[si].start);
+          try {
+            while ((blk = await rd.next())) {
+              if (o.signal.aborted) throw abortErr();
+              if (blk.pos >= q1) break;
+              for (var cc = 0; cc < blk.ch.length; cc++) {
+                var d = blk.ch[cc], from = Math.max(0, q0 - blk.pos), to = Math.min(d.length, q1 - blk.pos);
+                for (var p = from; p < to; p += 2) { var v = d[p] < 0 ? -d[p] : d[p]; if (v > peak) peak = v; }
+              }
+              var fl = Math.max(0, q0 - blk.pos), tl = Math.min(blk.ch[0].length, q1 - blk.pos);
+              if (tl > fl) meter.push(blk.ch[0], blk.ch[Math.min(1, blk.ch.length - 1)], fl, tl);
+            }
+          } finally { rd.close(); }
         }
-      } finally { rd.close(); }
-      var lufs = meter.result();
-      if (isFinite(lufs) && peak > 0.001) gain *= Math.min(10, Math.pow(10, (AV.LUFS_TARGET - lufs) / 20), 0.95 / peak);
+        var lufs = meter.result();
+        o.normGain.set(g.file, isFinite(lufs) && peak > 0.001 ? Math.min(10, Math.pow(10, (AV.LUFS_TARGET - lufs) / 20), 0.95 / peak) : 1);
+      }
+      gain *= o.normGain.get(g.file);
     }
     var reader = au ? au.open(g.start) : null, blocks = [], bi = 0, rend = false;
     async function ensure(upTo) {                      // подгружаем блоки, пока не покроем сэмпл upTo

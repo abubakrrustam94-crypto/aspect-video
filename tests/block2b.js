@@ -77,6 +77,18 @@ const srv = http.createServer((q, r) => {
       ok(li > -15.5 && li < -12.5, 'громкость после выравнивания ' + li + ' LUFS (была −22,1)');
       ok(pk < 0.2, 'пик не выше 0 дБ: ' + pk);
     }
+    // 3б. куски одного ролика: громкая и тихая части остаются разными (усиление одно на весь файл)
+    await open('steps.webm');
+    await pg.click('#settingsTabs [data-tab="export"]'); await pg.click('[data-group="short"] [data-val="480"]'); await pg.click('#fmtCard [data-val="webm"]');
+    await pg.click('#settingsTabs [data-tab="video"]');
+    await pg.evaluate(() => { window.AVApp.Q()[0].cuts = [[0, 3], [5, 8]]; set('fps', S.fps); });
+    await save(); const rs = await lastResult(); ok(rs && rs.size > 1000, 'сохранение с вырезами и выравниванием прошло');
+    if (rs) {
+      await dump('steps.' + rs.ext, rs.url);
+      const rms = (a, d) => +/RMS level dB:\s*(-?[\d.]+)/.exec(sh('ffmpeg -nostats -ss ' + a + ' -t ' + d + ' -i ' + path.join(outDir, 'steps.' + rs.ext) + ' -af astats -f null - 2>&1 | grep -m1 "RMS level dB"'))[1];
+      const loud = +rms(0.3, 2.4), quiet = +rms(3.3, 2.4);
+      ok(loud - quiet > 17 && loud - quiet < 23, 'разница громкости частей сохранилась (~20 дБ): ' + (loud - quiet).toFixed(1));
+    }
     // 4. горячие клавиши
     await open('tone.webm');
     await pg.click('body', { position: { x: 5, y: 5 } });
