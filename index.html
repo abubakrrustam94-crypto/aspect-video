@@ -5,7 +5,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; connect-src 'self' blob: data:; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, viewport-fit=cover">
-<meta name="av-version" content="2.5.4">
+<meta name="av-version" content="2.6.0">
 <meta name="theme-color" content="#0f0f14">
 <meta name="description" content="Меняет формат видео без обрезки: Reels, Shorts, пост 4:5, YouTube. Всё работает в браузере, видео никуда не загружается.">
 <title>Aspect Studio Video</title>
@@ -141,8 +141,6 @@
       <section class="card" id="resultCard" hidden>
         <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-save"/></svg> Готовые видео <button type="button" class="btn btn-outlined btn-sm" id="clearResults" style="margin-left:auto">Очистить список</button></div>
         <div class="results" id="resultList"></div>
-        <video id="resultVideo" controls playsinline hidden></video>
-        <img id="resultImg" alt="Готовая GIF-анимация" hidden>
         <p class="note" id="resultNote" hidden></p>
       </section>
     </div>
@@ -573,7 +571,7 @@
 <div class="progress-sheet" id="progress" role="status" aria-live="polite" hidden>
   <div class="ps-head"><strong id="pTitle">Обработка</strong><span id="pPct" class="mono">0%</span></div>
   <div class="bar"><i id="pBar"></i></div>
-  <p id="pText" class="note">…</p>
+  <div class="ps-foot"><p id="pText" class="note">…</p><span id="pEta" class="ps-eta"></span></div>
   <button type="button" class="btn btn-outlined btn-sm" id="pCancel">Отмена</button>
 </div>
 

@@ -667,7 +667,9 @@
   function lockOff() { try { if (wl) wl.release(); } catch (e) { /* ничего */ } wl = null; }
   document.addEventListener('visibilitychange', function () { if (busy && document.visibilityState === 'visible' && (!wl || wl.released)) lockOn(); });
 
+  var pStart = 0, pEta = 0;
   function showProgress(on) {
+    if (on) { pStart = Date.now(); pEta = 0; $('#pEta').textContent = ''; }
     $('#progress').hidden = !on;
     document.body.classList.toggle('progress-on', on);
   }
@@ -676,6 +678,13 @@
     $('#pBar').style.width = Math.round(Math.max(0, Math.min(1, frac)) * 100) + '%';
     $('#pPct').textContent = Math.round(Math.max(0, Math.min(1, frac)) * 100) + '%';
     $('#pText').textContent = text || '';
+    /* примерное время: по скорости с начала, со сглаживанием, чтобы цифра не прыгала */
+    var f = Math.max(0, Math.min(1, frac)), sec = (Date.now() - pStart) / 1000, eta = $('#pEta');
+    if (f >= 0.04 && sec >= 2 && f < 1) {
+      var left = sec * (1 - f) / f; pEta = pEta ? pEta * 0.7 + left * 0.3 : left;
+      eta.textContent = pEta < 5 ? 'почти готово' : 'осталось ~' + Math.floor(pEta / 60) + ':' + String(Math.round(pEta % 60) % 60).padStart(2, '0');
+    } else if (f < 0.04) eta.textContent = 'оцениваю время…';
+    else eta.textContent = '';
   }
   function setBusy(b) {
     busy = b;
@@ -864,25 +873,40 @@
   function addResult(r) {
     results.unshift(r);
     var list = $('#resultList'); list.replaceChildren();
-    results.forEach(function (x) {
-      var row = el('div', 'res-row'), info = el('div', 'res-info');
-      info.append(el('b', '', x.name), el('small', '', x.o.w + '×' + x.o.h + ' · ' + fmtBytes(x.blob.size) + (x.saved ? ' · сохранено в папку' : '') + (x.streamed ? ' · записано на диск' : '')));
+    results.forEach(function (x, i) {
+      var card = el('article', 'res-card' + (i === 0 ? ' fresh' : '')), isGif = x.ext === 'gif';
+      var th = el('div', 'res-thumb'); th.style.aspectRatio = x.o.w + ' / ' + x.o.h;
+      var media;
+      if (isGif) { media = el('img'); media.alt = 'Готовая GIF-анимация'; media.src = x.url; }
+      else { media = el('video'); media.muted = true; media.playsInline = true; media.preload = 'metadata'; media.src = x.url + '#t=0.1'; media.setAttribute('aria-label', 'Предпросмотр: ' + x.name); }
+      th.appendChild(media);
+      if (!isGif) {
+        var pl = el('button', 'res-play'); pl.type = 'button'; pl.setAttribute('aria-label', 'Смотреть: ' + x.name);
+        pl.appendChild(svgIcon('play'));
+        pl.addEventListener('click', function () {
+          if (media.controls) return;
+          $$('.res-thumb video').forEach(function (v) { if (v !== media) { v.pause(); v.controls = false; v.closest('.res-thumb').classList.remove('on'); } });
+          media.muted = false; media.controls = true; th.classList.add('on'); media.play().catch(function () { /* ждём нажатия */ });
+        });
+        th.appendChild(pl);
+      }
+      var info = el('div', 'res-info');
+      var chips = el('div', 'res-chips');
+      [(x.ext || 'mp4').toUpperCase(), x.o.w + '×' + x.o.h, fmtBytes(x.blob.size)].forEach(function (t) { chips.appendChild(el('span', 'res-chip', t)); });
+      info.append(el('b', '', x.name), chips);
+      if (i === 0) info.prepend(el('span', 'res-badge', 'Готово'));
+      var extra = (x.saved ? 'Сохранено в папку' : '') + (x.streamed ? (x.saved ? ' · ' : '') + 'Записано на диск' : '');
+      if (extra) info.appendChild(el('small', '', extra));
       var acts = el('div', 'res-acts');
-      var watch = el('button', 'btn btn-outlined btn-sm', 'Смотреть'); watch.type = 'button';
-      watch.addEventListener('click', function () {
-        var v = $('#resultVideo'), im = $('#resultImg');
-        if (x.ext === 'gif') { v.pause(); v.hidden = true; im.hidden = false; im.src = x.url; im.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); return; }
-        im.hidden = true; v.hidden = false; v.src = x.url; v.play().catch(function () { /* ждём нажатия */ }); v.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      });
-      var dl = el('a', 'btn btn-tonal btn-sm', 'Скачать'); dl.href = x.url; dl.download = x.name;
-      acts.append(watch, dl);
+      var dl = el('a', 'btn btn-main', 'Скачать'); dl.href = x.url; dl.download = x.name; dl.prepend(svgIcon('save'));
+      acts.append(dl);
       var f = new File([x.blob], x.name, { type: x.blob.type || 'video/mp4' });
       if (navigator.canShare && navigator.canShare({ files: [f] })) {
-        var sh = el('button', 'btn btn-outlined btn-sm', 'Поделиться'); sh.type = 'button';
+        var sh = el('button', 'btn btn-tonal', 'Поделиться'); sh.type = 'button';
         sh.addEventListener('click', function () { navigator.share({ files: [f] }).catch(function () { /* отменено */ }); });
         acts.append(sh);
       }
-      row.append(info, acts); list.appendChild(row);
+      card.append(th, info, acts); list.appendChild(card);
     });
     var warns = []; results.slice(0, 1).forEach(function (x) { (x.warnings || []).forEach(function (w) { warns.push(w); }); });
     if (r.ext === 'webm' && r.fmt !== 'webm') warns.push('Браузер записал WebM: на некоторых устройствах такой файл открывается не везде.');
@@ -892,10 +916,9 @@
   }
 
   $('#clearResults').addEventListener('click', function () {
+    $$('#resultList video').forEach(function (v) { v.pause(); v.removeAttribute('src'); v.load(); });
     results.forEach(function (r) { URL.revokeObjectURL(r.url); });
     results.length = 0; $('#resultList').replaceChildren();
-    var v = $('#resultVideo'); v.pause(); v.removeAttribute('src'); v.hidden = true;
-    var im = $('#resultImg'); im.removeAttribute('src'); im.hidden = true;
     $('#resultCard').hidden = true;
     AV.cleanOpfs();                        // файлы на диске нужны, пока результаты в списке
     toast('Список очищен, место освобождено');

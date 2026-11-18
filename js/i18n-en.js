@@ -661,4 +661,11 @@ window.I18N_EN = {
 "Кнопки «Забыть» и «Не сейчас» в тёмной теме были плохо читаемы, исправлено.": "The “Forget” and “Not now” buttons were hard to read in the dark theme; fixed.",
 "Сайт не показывается, если его встроили в чужую страницу.": "The site is not shown if it is embedded in another page.",
 "Добавлен тест на странные файлы и испорченные данные в хранилищах.": "Added a test for odd files and corrupted data in storage.",
+  "осталось ~": "~",
+  "оцениваю время…": "estimating time…",
+  "почти готово": "almost done",
+  "Смотреть: ": "Play: ",
+  "Предпросмотр: ": "Preview: ",
+  "Сохранено в папку": "Saved to folder",
+  "Записано на диск": "Written to disk",
 };
