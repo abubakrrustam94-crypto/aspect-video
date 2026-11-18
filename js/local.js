@@ -27,13 +27,23 @@
   }
   function fmt1(n) { return (Math.round(n * 10) / 10).toString().replace('.', ','); }
   AV.perfRender = function () {
-    var a = load(), lines = a.slice().reverse().map(function (x) {
-      var d = new Date(x.t);
-      return d.toLocaleDateString() + ' ' + d.toLocaleTimeString().slice(0, 5) + ' · ' + x.w + '×' + x.h + ' · ' + String(x.fmt).toUpperCase() +
-        '\nВидео ' + fmt1(x.dur) + ' с, сохранено за ' + fmt1(x.ms / 1000) + ' с (' + fmt1(x.dur / Math.max(0.001, x.ms / 1000)) + '× реального времени)' + (x.eng ? ', ' + x.eng : '');
-    });
+    var a = load(), box = $('#perfText');
     $('#perfCount').textContent = a.length;
-    $('#perfText').textContent = lines.length ? lines.join('\n\n') : 'Пока пусто. После первого сохранения здесь появится скорость.';
+    if (!a.length) { box.replaceChildren(el('p', 'perf-empty', 'Пока пусто. После первого сохранения здесь появится скорость.')); return; }
+    var sp = a.map(function (x) { return x.dur / Math.max(0.001, x.ms / 1000); });                 // во сколько раз быстрее реального времени
+    var avg = sp.reduce(function (p, v) { return p + v; }, 0) / sp.length, best = Math.max.apply(null, sp);
+    function tile(v, l) { var t = el('div', 'perf-tile'); t.append(el('b', '', v), el('span', '', l)); return t; }
+    var sum = el('div', 'perf-sum'); sum.append(tile(fmt1(avg) + '×', 'Средняя'), tile(fmt1(best) + '×', 'Лучшая'), tile(String(a.length), 'Сохранений'));
+    var list = el('ul', 'perf-list');
+    a.slice().reverse().forEach(function (x, i0) {
+      var i = a.length - 1 - i0, v = sp[i], d = new Date(x.t), row = el('li', 'perf-row' + (v < 1 ? ' slow' : ''));
+      var top = el('div', 'perf-top'), bar = el('div', 'perf-bar'), fill = el('i'), meta = el('div', 'perf-meta');
+      top.append(el('b', 'perf-x', fmt1(v) + '×'), el('span', 'perf-main', x.w + '×' + x.h + ' · ' + String(x.fmt).toUpperCase() + ' · ' + fmt1(x.dur) + ' с → ' + fmt1(x.ms / 1000) + ' с'));
+      fill.style.width = Math.max(4, Math.round(100 * v / best)) + '%'; bar.appendChild(fill); bar.setAttribute('aria-hidden', 'true');
+      meta.textContent = d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + (x.eng ? ' · ' + x.eng : '');
+      row.append(top, bar, meta); list.appendChild(row);
+    });
+    box.replaceChildren(sum, el('p', 'perf-hint', '× реального времени: во сколько раз сохранение быстрее самого видео. Меньше 1× значит медленнее.'), list);
   };
   /* rec: { fmt, w, h, dur — секунд результата, ms — сколько заняло сохранение, eng } */
   AV.perfAdd = function (rec) {

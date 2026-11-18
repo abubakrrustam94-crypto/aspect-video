@@ -382,3 +382,26 @@ details.wn-rel .wn-ver { background: var(--md-sys-color-surface-container-highes
   #onboard .onb2::before { content: ""; display: block; width: 36px; height: 4px; border-radius: 2px; margin: 0 auto 6px; background: var(--md-sys-color-outline-variant); }
 }
 @media (prefers-reduced-motion: reduce) { .onb2, .onb2 .onb-ic, .onb-body, .onb-hero::after, #howDlg .wn-card { animation: none !important; } }
+
+/* ===== Журнал скорости (v2.5.2) ===== */
+.perf { margin-top: 10px; border-radius: 16px; outline-offset: 2px; }
+.perf-sum { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.perf-tile { padding: 12px 10px; border-radius: 16px; text-align: center; background: var(--md-sys-color-surface-container-high); }
+.perf-tile:first-child { background: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); }
+.perf-tile b { display: block; font-size: 1.35rem; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.perf-tile span { font-size: .74rem; color: var(--md-sys-color-on-surface-variant); }
+.perf-tile:first-child span { color: inherit; }
+.perf-hint { margin: 10px 2px 8px; font-size: .78rem; line-height: 1.4; color: var(--md-sys-color-on-surface-variant); }
+.perf-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; max-height: 340px; overflow: auto; scrollbar-width: thin; }
+.perf-row { padding: 10px 12px; border-radius: 14px; background: var(--md-sys-color-surface-container-high); }
+.perf-top { display: flex; align-items: baseline; gap: 10px; }
+.perf-x { flex: none; min-width: 3.4em; font-size: 1.05rem; font-variant-numeric: tabular-nums; color: var(--md-sys-color-primary); }
+.perf-row.slow .perf-x { color: var(--md-sys-color-error); }
+.perf-main { font-size: .84rem; min-width: 0; overflow-wrap: anywhere; }
+.perf-bar { height: 5px; margin: 8px 0 6px; border-radius: 3px; background: var(--md-sys-color-outline-variant); overflow: hidden; }
+.perf-bar i { display: block; height: 100%; border-radius: 3px; background: var(--md-sys-color-primary); transition: width .5s var(--motion-spring); }
+.perf-row.slow .perf-bar i { background: var(--md-sys-color-error); }
+.perf-meta { font-size: .74rem; color: var(--md-sys-color-on-surface-variant); }
+.perf-empty { margin: 0; padding: 14px; border-radius: 14px; text-align: center; font-size: .86rem; background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-on-surface-variant); }
+@media (prefers-reduced-motion: reduce) { .perf-bar i { transition: none; } }
+#perfBox .row { margin-top: 12px; }

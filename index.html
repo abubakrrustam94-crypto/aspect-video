@@ -5,7 +5,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; connect-src 'self' blob: data:; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, viewport-fit=cover">
-<meta name="av-version" content="2.5.1">
+<meta name="av-version" content="2.5.2">
 <meta name="theme-color" content="#0f0f14">
 <meta name="description" content="Меняет формат видео без обрезки: Reels, Shorts, пост 4:5, YouTube. Всё работает в браузере, видео никуда не загружается.">
 <title>Aspect Studio Video</title>
@@ -544,7 +544,7 @@
         <details class="errlog" id="perfBox">
           <summary>Журнал скорости (<span id="perfCount">0</span>)</summary>
           <p class="note" style="margin-top:8px">Сколько времени занимало каждое сохранение на этом устройстве. Хранится только здесь и никуда не отправляется.</p>
-          <pre id="perfText" tabindex="0"></pre>
+          <div class="perf" id="perfText" tabindex="0" role="region" aria-label="Журнал скорости"></div>
           <div class="row"><button type="button" class="btn btn-outlined btn-sm" id="perfClear">Очистить</button></div>
         </details>
         <details class="errlog" id="errLogBox">

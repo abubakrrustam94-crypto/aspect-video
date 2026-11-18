@@ -643,4 +643,9 @@ window.I18N_EN = {
 "Новый дизайн окон": "New window design",
 "«Как это работает»: карточки со значками, главное про приватность выделено, на телефоне окно выезжает снизу.": "“How it works”: cards with icons, the key privacy point is highlighted, and on a phone the window slides up from the bottom.",
 "«Показать обучение»: номер шага, большая иллюстрация, полоса прогресса, кнопка «Назад» и плавная смена шагов.": "“Show tutorial”: step number, a large illustration, a progress bar, a “Back” button and smooth step changes.",
+"Средняя": "Average",
+"Лучшая": "Best",
+"Сохранений": "Saves",
+"× реального времени: во сколько раз сохранение быстрее самого видео. Меньше 1× значит медленнее.": "× real time: how many times faster the save was than the video itself. Below 1× means slower.",
+"Журнал скорости стал нагляднее: плитки «Средняя», «Лучшая», «Сохранений» и список сохранений со шкалой скорости. Медленнее реального времени подсвечивается красным.": "The speed log is clearer: “Average”, “Best” and “Saves” tiles and a list of saves with a speed bar. Slower than real time is highlighted in red.",
 };
