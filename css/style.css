@@ -276,7 +276,6 @@ details.wn-rel .wn-ver { background: var(--md-sys-color-surface-container-highes
 .off-chip:empty { display: none; }
 .errlog { margin-top: 14px; }
 .errlog summary { cursor: pointer; font-size: .9rem; font-weight: 600; color: var(--md-sys-color-on-surface-variant); padding: 6px 0; }
-#errLogText { max-height: 220px; overflow: auto; white-space: pre-wrap; word-break: break-word; font-size: .72rem; line-height: 1.4; background: var(--md-sys-color-surface-container-high); border-radius: 12px; padding: 10px; margin: 8px 0; user-select: text; }
 .speed-out { margin-top: 12px; padding: 10px 12px; border-radius: 14px; background: var(--md-sys-color-surface-container-high); font-size: .85rem; display: grid; gap: 4px; }
 .speed-out[hidden] { display: none; }
 .speed-out .sp-row { display: flex; justify-content: space-between; gap: 12px; }
@@ -405,3 +404,29 @@ details.wn-rel .wn-ver { background: var(--md-sys-color-surface-container-highes
 .perf-empty { margin: 0; padding: 14px; border-radius: 14px; text-align: center; font-size: .86rem; background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-on-surface-variant); }
 @media (prefers-reduced-motion: reduce) { .perf-bar i { transition: none; } }
 #perfBox .row { margin-top: 12px; }
+
+/* ===== Журнал ошибок (v2.5.3) ===== */
+.errv { margin-top: 10px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; border-radius: 16px; outline-offset: 2px; }
+.err-dev { padding: 12px 14px; border-radius: 16px; background: var(--md-sys-color-surface-container-high); }
+.err-dev .err-h { margin: 0 0 8px; font-size: .78rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--md-sys-color-on-surface-variant); }
+.err-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.err-chip { font-size: .76rem; padding: 3px 10px; border-radius: 999px; background: var(--md-sys-color-surface-container-highest, var(--md-sys-color-surface-container)); color: var(--md-sys-color-on-surface); font-variant-numeric: tabular-nums; }
+.err-chip.ok { background: color-mix(in srgb, var(--md-sys-color-success) 18%, transparent); }
+.err-chip.no { background: transparent; box-shadow: inset 0 0 0 1px var(--md-sys-color-outline-variant); color: var(--md-sys-color-on-surface-variant); }
+.err-ua { margin: 8px 0 0; font-size: .7rem; line-height: 1.35; color: var(--md-sys-color-on-surface-variant); overflow-wrap: anywhere; }
+.err-status { display: grid; gap: 2px; padding: 12px 14px; border-radius: 16px; background: color-mix(in srgb, var(--md-sys-color-success) 14%, transparent); }
+.err-status.bad { background: color-mix(in srgb, var(--md-sys-color-error) 14%, transparent); }
+.err-status b { font-size: .95rem; }
+.err-status span { font-size: .8rem; color: var(--md-sys-color-on-surface-variant); }
+.err-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; max-height: 360px; overflow: auto; scrollbar-width: thin; }
+.err-item { border-radius: 14px; background: var(--md-sys-color-surface-container-high); }
+.errlog .err-sum { font-size: .8rem; font-weight: 400; color: var(--md-sys-color-on-surface); display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 10px 14px; cursor: pointer; list-style: none; min-height: 44px; }
+.errlog .err-sum::-webkit-details-marker { display: none; }
+.err-sum:focus-visible { outline: 2px solid var(--md-sys-color-primary); outline-offset: -2px; border-radius: 14px; }
+.err-where { flex: none; max-width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .72rem; font-weight: 700; padding: 3px 9px; border-radius: 8px; background: var(--md-sys-color-error); color: var(--md-sys-color-on-error); }
+.err-n { flex: none; font-size: .72rem; font-weight: 700; color: var(--md-sys-color-on-surface-variant); }
+.err-first { flex: 1 1 100%; order: 3; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .8rem; }
+.err-when { flex: none; margin-left: auto; font-size: .7rem; color: var(--md-sys-color-on-surface-variant); font-variant-numeric: tabular-nums; }
+.err-item[open] .err-first { white-space: normal; }
+.err-msg { margin: 0; padding: 0 14px 12px; max-height: 200px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .72rem; line-height: 1.45; user-select: text; }
+#errLogBox .row { margin-top: 12px; }

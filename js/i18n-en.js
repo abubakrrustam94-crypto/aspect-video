@@ -648,4 +648,12 @@ window.I18N_EN = {
 "Сохранений": "Saves",
 "× реального времени: во сколько раз сохранение быстрее самого видео. Меньше 1× значит медленнее.": "× real time: how many times faster the save was than the video itself. Below 1× means slower.",
 "Журнал скорости стал нагляднее: плитки «Средняя», «Лучшая», «Сохранений» и список сохранений со шкалой скорости. Медленнее реального времени подсвечивается красным.": "The speed log is clearer: “Average”, “Best” and “Saves” tiles and a list of saves with a speed bar. Slower than real time is highlighted in red.",
+"Об устройстве": "About the device",
+"Записей:": "Entries:",
+"Новые сверху. Нажми на запись, чтобы развернуть.": "Newest first. Tap an entry to expand it.",
+"Всё в порядке. Если что-то сломается, это появится здесь.": "All good. If something breaks, it will show up here.",
+"Не засыпать экран": "Keep screen awake",
+"Выбор папки": "Folder picker",
+"Журнал ошибок": "Error log",
+"Журнал ошибок переделан: блок «Об устройстве» с отметками возможностей, понятный статус и записи-карточки, которые разворачиваются. Копирование и «Сообщить о проблеме» по-прежнему отдают полный текст.": "The error log is redone: an “About the device” block with capability marks, a clear status and expandable entry cards. Copy and “Report a problem” still give the full text.",
 };

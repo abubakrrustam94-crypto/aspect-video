@@ -104,15 +104,11 @@
 
   /* ---------- Журнал ошибок ---------- */
   async function features() {
-    var f = [];
-    f.push('WebCodecs ' + (AV.canWebCodecs() ? 'да' : 'нет'));
-    f.push('AAC ' + (await AV.audioSupport() ? 'да' : 'нет'));
-    f.push('запись на диск ' + (AV.hasOpfs() ? 'да' : 'нет'));
-    f.push('Wake Lock ' + (navigator.wakeLock ? 'да' : 'нет'));
-    f.push('папка ' + (window.showDirectoryPicker ? 'да' : 'нет'));
-    return f.join(', ');
+    var f = [['WebCodecs', AV.canWebCodecs()], ['AAC', await AV.audioSupport()], ['Запись на диск', AV.hasOpfs()], ['Не засыпать экран', !!navigator.wakeLock], ['Выбор папки', !!window.showDirectoryPicker]];
+    featList = f;
+    return f.map(function (x) { return x[0] + ' ' + (x[1] ? 'да' : 'нет'); }).join(', ');
   }
-  var featCache = '';
+  var featCache = '', featList = [];
   features().then(function (s) { featCache = s; renderErrLog(); });
   function errLogText() {
     var app = window.AVApp, it = app && app.Q()[0];
@@ -125,7 +121,25 @@
   window.errLogText = errLogText;
   window.renderErrLog = function () {
     $('#errLogCount').textContent = errLog.length;
-    $('#errLogText').textContent = errLogText();
+    var box = $('#errLogText'), app = window.AVApp, it = app && app.Q()[0];
+    function chip(t, cls) { return el('span', 'err-chip' + (cls ? ' ' + cls : ''), t); }
+    var dev = el('div', 'err-dev'), chips = el('div', 'err-chips');
+    chips.append(chip('v' + APP_VERSION), chip(innerWidth + '×' + innerHeight), chip(DEV_MEM + ' ГБ'));
+    featList.forEach(function (x) { chips.append(chip((x[1] ? '✓ ' : '✕ ') + x[0], x[1] ? 'ok' : 'no')); });
+    var ua = el('p', 'err-ua', navigator.userAgent); ua.setAttribute('data-i18n-skip', '');
+    dev.append(el('p', 'err-h', 'Об устройстве'), chips, ua);
+    var st = el('div', 'err-status' + (errLog.length ? ' bad' : ''));
+    st.append(el('b', '', errLog.length ? 'Записей: ' + errLog.length : 'Ошибок нет'), el('span', '', errLog.length ? 'Новые сверху. Нажми на запись, чтобы развернуть.' : 'Всё в порядке. Если что-то сломается, это появится здесь.'));
+    var list = el('ul', 'err-list');
+    errLog.slice().reverse().forEach(function (e) {
+      var row = el('li', ''), d = el('details', 'err-item'), sm = el('summary', 'err-sum'), first = String(e.m || '').split('\n')[0].replace(/^[A-Za-z]*Error:\s*/, '');
+      var w = el('span', 'err-where', e.w || 'ошибка'), msg = el('span', 'err-first', first), when = el('time', 'err-when', new Date(e.t).toLocaleString([], { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }));
+      w.setAttribute('data-i18n-skip', ''); msg.setAttribute('data-i18n-skip', '');
+      sm.append(w); if (e.n > 1) sm.append(el('span', 'err-n', '×' + e.n)); sm.append(when, msg);
+      var pre = el('pre', 'err-msg', e.m); pre.setAttribute('data-i18n-skip', ''); pre.tabIndex = 0;
+      d.append(sm, pre); row.appendChild(d); list.appendChild(row);
+    });
+    box.replaceChildren(dev, st); if (errLog.length) box.appendChild(list);
   };
   renderErrLog();
   $('#errLogCopy').addEventListener('click', async function () {
