@@ -2,7 +2,7 @@
 /* Защита от встраивания в чужую страницу (clickjacking): CSP через meta не умеет frame-ancestors, поэтому проверяем сами */
 if (window.top !== window.self) { document.documentElement.hidden = true; try { window.top.location.href = window.location.href; } catch (e) { /* браузер не разрешил, страница уже скрыта */ } }
 /* Aspect Studio Video — ядро: константы, настройки, журнал ошибок, уведомления. */
-const APP_VERSION = '2.7.0';
+const APP_VERSION = '2.7.1';
 const STORE_KEY = 'aspect-video-v1';
 const ERRLOG_KEY = 'aspect-video-errlog', ERRLOG_MAX = 30;
 const SEEN_KEY = 'aspect-video-seen', COUNT_KEY = 'aspect-video-count', THEME_KEY = 'aspect-video-theme', TAB_KEY = 'aspect-video-tab';

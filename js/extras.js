@@ -171,7 +171,7 @@
 
   /* ---------- Компоненты ---------- */
   var COMPS = [{
-    id: 'faces', name: 'Поиск лиц', size: '~1,7 МБ',
+    id: 'faces', icon: 'user', bytes: 1735240, name: 'Поиск лиц', size: '~1,7 МБ',
     desc: 'Нужен для «Следить за лицом» в режиме «Обрезать». Модель BlazeFace, работает на устройстве.',
     files: ['vendor/tfjs/runtime.js', 'vendor/tfjs/tfjs-backend-wasm-simd.wasm', 'vendor/tfjs/tfjs-backend-wasm.wasm', 'vendor/blazeface/blazeface-back.json', 'vendor/blazeface/blazeface-back.bin'],
     sha: {
@@ -182,7 +182,7 @@
       'vendor/blazeface/blazeface-back.bin': 'dc9a97fdc50bc43216554bdd69aa3e7b9361a519ee7bdd996a2f69a98a6f9b72'
     }
   }, {
-    id: 'denoise', name: 'Шумоподавление', size: '~0,1 МБ',
+    id: 'denoise', icon: 'sparkles', bytes: 124406, name: 'Шумоподавление', size: '~0,1 МБ',
     desc: 'Нужен для «Убрать шум» на вкладке «Видео». Нейросеть RNNoise, работает на устройстве.',
     files: ['vendor/rnnoise/rnnoise.js', 'vendor/rnnoise/rnnoise.wasm'],
     sha: {
@@ -190,7 +190,7 @@
       'vendor/rnnoise/rnnoise.wasm': '677147b9248aedc0a00de79dc090d1ecead37c08c8bb773a790da16109d2c487'
     }
   }, {
-    id: 'speech', name: 'Распознавание речи', size: '~60 МБ',
+    id: 'speech', icon: 'copy', bytes: 60087090, name: 'Распознавание речи', size: '~60 МБ',
     desc: 'Нужен для «Распознать речь» в подписях: автосубтитры. Модель Whisper tiny, работает на устройстве, звук никуда не уходит.',
     files: [
       'vendor/whisper/models/Xenova/whisper-tiny/added_tokens.json',
@@ -270,10 +270,10 @@
       }
     } catch (e) { /* перенос необязателен */ }
   }
-  async function writeOpfs(p, res) {
+  async function writeOpfs(p, res, onBytes) {
     var fh = await (await cdir(true)).getFileHandle(fname(p), { create: true }), w = await fh.createWritable(), got = 0;
     try {
-      if (res.body && res.body.getReader) { var rd = res.body.getReader(); for (;;) { var r = await rd.read(); if (r.done) break; await w.write(r.value); got += r.value.length; } }
+      if (res.body && res.body.getReader) { var rd = res.body.getReader(); for (;;) { var r = await rd.read(); if (r.done) break; await w.write(r.value); got += r.value.length; if (onBytes) onBytes(r.value.length); } }
       else { var b = await res.blob(); await w.write(b); got = b.size; }
       if (!got) throw new Error('пустой файл ' + p);
       await w.close();
@@ -286,47 +286,96 @@
     var h = await crypto.subtle.digest('SHA-256', buf);
     return Array.from(new Uint8Array(h), function (x) { return x.toString(16).padStart(2, '0'); }).join('');
   }
+  /* состояние идущих скачиваний: id → { done, total, idx, n, file, t0, last, speed, phase, ctrl } */
+  var DL = {}, REF = {};
+  var STATUS = { ok: ['Готово', 'ok'], part: ['Не полностью', 'part'], none: ['Не скачано', 'none'], busy: ['Скачивание', 'busy'] };
+  function baseName(p) { return p.split('/').pop(); }
+  function paintComp(c) {
+    var r = REF[c.id], d = DL[c.id]; if (!r) return;
+    r.row.classList.toggle('busy', !!d);
+    if (!d) return;
+    var frac = d.total ? Math.min(0.99, d.done / d.total) : 0, left = d.speed > 1000 ? (d.total - d.done) / d.speed : 0;
+    r.bar.style.width = (d.phase === 'check' || d.phase === 'wait' ? Math.max(frac, 0.02) : frac) * 100 + '%';
+    r.bar.parentNode.setAttribute('aria-valuenow', String(Math.round(frac * 100)));
+    r.pct.textContent = Math.round(frac * 100) + '%';
+    var line = d.phase === 'check' ? 'Проверяю подлинность: ' + baseName(d.file) : d.phase === 'wait' ? 'Подключаюсь…' : fmtBytes(d.done) + ' из ' + fmtBytes(d.total) + (d.speed > 1000 ? ' · ' + fmtBytes(d.speed) + '/с' : '') + (left > 1 ? ' · осталось ~' + Math.floor(left / 60) + ':' + String(Math.round(left % 60) % 60).padStart(2, '0') : '');
+    r.pline.textContent = line;
+    r.pfile.textContent = Math.min(d.idx + 1, d.n) + '/' + d.n + ' · ' + baseName(d.file);
+  }
   async function drawComps() {
-    var box = $('#compList'), mine = (drawComps.seq = (drawComps.seq || 0) + 1), frag = document.createDocumentFragment();
+    var box = $('#compList'), mine = (drawComps.seq = (drawComps.seq || 0) + 1), frag = document.createDocumentFragment(), refs = {}, have = 0, tot = 0;
     if (!drawComps.migrated) { drawComps.migrated = true; await migrateComps(); }
     for (var i = 0; i < COMPS.length; i++) {
-      var c = COMPS[i], inf = await compInfo(c), st = inf.st;
-      var row = el('div', 'comp-row'), info = el('div', 'comp-info');
-      info.append(el('b', '', c.name + ' · ' + c.size), el('small', '', c.desc),
-        el('small', 'comp-st' + (st === 'ok' ? ' ok' : ''), st === 'ok' ? 'Скачано: работает без интернета' + (inf.where === 'opfs' ? ' (в памяти сайта, не в кэше)' : '') : st === 'part' ? 'Скачано не полностью' : 'Не скачано: подгрузится при первом использовании'));
-      var acts = el('div', 'res-acts');
+      var c = COMPS[i], inf = await compInfo(c), st = inf.st, busy = !!DL[c.id];
+      if (st === 'ok') have++; tot += c.bytes || 0;
+      var row = el('article', 'comp-card ' + (busy ? 'busy' : st));
+      var ic = el('div', 'comp-ic'); ic.appendChild(svgIcon(c.icon || 'box'));
+      var head = el('div', 'comp-head'), title = el('div', 'comp-title');
+      var meta = el('div', 'comp-meta');
+      var pill = el('span', 'comp-pill ' + (busy ? 'busy' : st), (busy ? STATUS.busy : STATUS[st])[0]);
+      meta.append(el('span', 'comp-size', c.size), pill); title.append(el('b', '', c.name), meta); head.append(ic, title);
+      var desc = el('p', 'comp-desc', c.desc);
+      var where = el('small', 'comp-where', st === 'ok' ? 'Работает без интернета' + (inf.where === 'opfs' ? ' · хранится в памяти сайта, обновление его не стирает' : '') : st === 'part' ? 'Часть файлов осталась. Скачай заново, чтобы всё работало без интернета.' : 'С интернетом работает и так: файлы подгрузятся при первом использовании.');
+      var prog = el('div', 'comp-prog');
+      var track = el('div', 'bar'); track.setAttribute('role', 'progressbar'); track.setAttribute('aria-label', 'Скачивание: ' + c.name); track.setAttribute('aria-valuemin', '0'); track.setAttribute('aria-valuemax', '100'); track.setAttribute('aria-valuenow', '0');
+      var bar = el('i'); track.appendChild(bar);
+      var ptop = el('div', 'comp-ptop'), pline = el('span', 'comp-pline', '…'), pct = el('b', 'mono', '0%'); ptop.append(pline, pct);
+      var pfile = el('small', 'comp-pfile', '');
+      prog.append(ptop, track, pfile); prog.setAttribute('role', 'status');
+      var acts = el('div', 'comp-acts');
       var dl = el('button', 'btn btn-tonal btn-sm', st === 'ok' ? 'Скачать заново' : 'Скачать'); dl.type = 'button';
-      dl.addEventListener('click', (function (cc, btn) { return async function () { btn.disabled = true; btn.textContent = 'Скачиваю…'; await downloadComp(cc); drawComps(); }; })(c, dl));
+      var cancel = el('button', 'btn btn-outlined btn-sm', 'Отменить'); cancel.type = 'button';
       var rm = el('button', 'btn btn-outlined btn-sm danger', 'Удалить'); rm.type = 'button'; rm.disabled = st === 'none';
+      dl.addEventListener('click', (function (cc) { return function () { downloadComp(cc); }; })(c));
+      cancel.addEventListener('click', (function (cc) { return function () { if (DL[cc.id] && DL[cc.id].ctrl) DL[cc.id].ctrl.abort(); }; })(c));
       rm.addEventListener('click', (function (cc) { return async function () { await removeComp(cc); toast('Удалено: ' + cc.name); drawComps(); drawStorage(); }; })(c));
-      acts.append(dl, rm); row.append(info, acts); frag.appendChild(row);
+      acts.append(dl, cancel, rm);
+      var body = el('div', 'comp-body'); body.append(head, desc, where, prog, acts);
+      row.append(body); frag.appendChild(row);
+      refs[c.id] = { row: row, bar: bar, pct: pct, pline: pline, pfile: pfile };
     }
-    if (mine === drawComps.seq) box.replaceChildren(frag);   // поздний старый вызов не затирает свежий
+    if (mine === drawComps.seq) {                    // поздний старый вызов не затирает свежий
+      REF = refs; box.replaceChildren(frag);
+      var sum = $('#compSum'); if (sum) sum.textContent = 'Скачано: ' + have + ' из ' + COMPS.length;
+      COMPS.forEach(paintComp);
+    }
   }
   async function downloadComp(c) {
+    if (DL[c.id]) return;
+    var d = DL[c.id] = { done: 0, total: c.bytes || 1, idx: 0, n: c.files.length, file: c.files[0], t0: Date.now(), last: Date.now(), speed: 0, phase: 'wait', ctrl: new AbortController() };
+    var onBytes = function (n) {
+      d.done += n; d.acc = (d.acc || 0) + n; d.phase = 'get'; var now = Date.now(), dt = (now - d.last) / 1000;
+      if (dt >= 0.5) { var inst = d.acc / dt; d.speed = d.speed ? d.speed * 0.7 + inst * 0.3 : inst; d.acc = 0; d.last = now; paintComp(c); }
+    };
+    drawComps();
     try {
       var okList = [], bad = '', cs = HAS_OPFS ? [] : await swCaches();
       if (!HAS_OPFS && !cs.length) { toast('Сайт ещё не установлен для офлайна. Открой его по https и подожди минуту.', true); return; }
       for (var i = 0; i < c.files.length; i++) {
+        d.idx = i; d.file = c.files[i]; d.phase = 'wait'; paintComp(c);
         try {
-          var r = await fetch(abs(c.files[i]), { cache: 'reload' });
+          var r = await fetch(abs(c.files[i]), { cache: 'reload', signal: d.ctrl.signal });
           if (!r.ok) continue;
           if (HAS_OPFS) {
-            await writeOpfs(c.files[i], r);
+            var before = d.done;
+            await writeOpfs(c.files[i], r, onBytes);
+            d.phase = 'check'; paintComp(c);
             if (c.sha && c.sha[c.files[i]] && window.crypto && crypto.subtle && (await sha256Of(c.files[i])) !== c.sha[c.files[i]]) {
-              await opfsDel(c.files[i]); bad = c.files[i]; continue;
+              await opfsDel(c.files[i]); bad = c.files[i]; d.done = before; continue;
             }
-          } else await cs[0].put(abs(c.files[i]), r);
+          } else { await cs[0].put(abs(c.files[i]), r); d.done += 1; }
           okList.push(c.files[i]);
-        } catch (e) { /* один из wasm может отсутствовать, это не ошибка */ }
+        } catch (e) { if (e && e.name === 'AbortError') throw e; /* один из wasm может отсутствовать, это не ошибка */ }
       }
       var ok = okList.length;
       if (HAS_OPFS && ok && navigator.storage.persist) { try { await navigator.storage.persist(); } catch (e3) { /* браузер решит сам */ } }
-      if (bad) { toast('Файл не прошёл проверку подлинности и не сохранён: ' + bad, true); drawStorage(); return; }
+      if (bad) { toast('Файл не прошёл проверку подлинности и не сохранён: ' + bad, true); return; }
       var full = compComplete(c, okList);
       toast(full ? 'Скачано: ' + c.name : 'Скачано не всё. Проверь соединение и повтори.', !full);
-    } catch (e) { logError(e, 'компоненты'); toast('Не получилось скачать: ' + (e && e.message), true); }
-    drawStorage();
+    } catch (e) {
+      if (e && e.name === 'AbortError') toast('Скачивание остановлено: ' + c.name);
+      else { logError(e, 'компоненты'); toast('Не получилось скачать: ' + (e && e.message), true); }
+    } finally { delete DL[c.id]; drawComps(); drawStorage(); }
   }
   async function removeComp(c) {
     var cs = await swCaches();

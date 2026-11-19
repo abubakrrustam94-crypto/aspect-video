@@ -167,10 +167,10 @@ const srv = http.createServer((q, r) => {
 
     /* компоненты */
     await pg.click('#settingsTabs [data-tab="components"]');
-    await pg.waitForSelector('#compList .comp-row', { timeout: 5000 });
-    await pg.click('#compList .comp-row .btn-tonal');
-    await pg.waitForFunction(() => /Скачано: работает/.test(document.querySelector('#compList').textContent), null, { timeout: 20000 }).catch(() => {});
-    ok(/Скачано: работает/.test(await pg.textContent('#compList')), 'модель лиц скачана в память сайта');
+    await pg.waitForSelector('#compList .comp-card', { timeout: 5000 });
+    await pg.click('#compList .comp-card .btn-tonal');
+    await pg.waitForFunction(() => /Работает без интернета/.test(document.querySelector('#compList').textContent), null, { timeout: 20000 }).catch(() => {});
+    ok(/Работает без интернета/.test(await pg.textContent('#compList')), 'модель лиц скачана в память сайта');
     const where = await pg.evaluate(async () => {
       const d = await (await navigator.storage.getDirectory()).getDirectoryHandle('aspect-video-components'); let n = 0;
       for await (const e of d.values()) n++;
@@ -180,14 +180,14 @@ const srv = http.createServer((q, r) => {
     ok(where.n === 5 && where.inCache === 0, 'файлы лежат в OPFS (' + where.n + '), в кэше сайта их нет (' + where.inCache + ')');
     const viaSw = await pg.evaluate(async () => { const r = await fetch('vendor/blazeface/blazeface-back.json'); return { ok: r.ok, type: r.headers.get('content-type'), n: (await r.text()).length }; });
     ok(viaSw.ok && /json/.test(viaSw.type) && viaSw.n > 100, 'service worker отдаёт модель из OPFS');
-    await pg.click('#compList .comp-row .danger');
+    await pg.click('#compList .comp-card .danger');
     await pg.waitForFunction(() => /Не скачано/.test(document.querySelector('#compList').textContent), null, { timeout: 8000 }).catch(() => {});
     { const t = await pg.textContent('#compList'); ok(/Не скачано/.test(t), 'модель лиц удалена' + (/Не скачано/.test(t) ? '' : ' :: ' + t.replace(/\s+/g, ' ').slice(0, 300))); }
     ok((await pg.locator('#storageOut .sp-row').count()) >= 2, 'место на устройстве показано');
 
     /* О программе */
     await pg.click('#settingsTabs [data-tab="about"]');
-    ok((await pg.textContent('#appVersion')) === "v2.7.0", 'версия показана');
+    ok((await pg.textContent('#appVersion')) === "v2.7.1", 'версия показана');
     await pg.click('#wnOpenBtn');
     await pg.waitForSelector('#wnList .wn-rel', { timeout: 5000 });
     ok((await pg.locator('#wnList .wn-rel').count()) >= 2, 'что нового: записей ' + (await pg.locator('#wnList .wn-rel').count()));

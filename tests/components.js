@@ -8,9 +8,9 @@ const srv=http.createServer((q,r)=>{let f=path.join(root,decodeURIComponent(q.ur
  p.on('pageerror',e=>console.log('PAGEERR',e.message));
  await p.goto('http://localhost:8792/index.html'); await p.waitForSelector('#uploadBtn'); await p.waitForFunction(()=>navigator.serviceWorker.controller,null,{timeout:20000}).catch(()=>{});
  await p.setInputFiles('#fileInput',path.join(fx,'speech.webm')); await p.waitForSelector('#previewCard:not([hidden])');
- await p.click('#settingsTabs [data-tab="components"]'); await p.waitForSelector('#compList .comp-row');
- for (const i of [1,2]) { const row=p.locator('#compList .comp-row').nth(i); await row.locator('button:has-text("Скачать")').click();
-   await p.waitForFunction(n=>/Скачать заново/.test(document.querySelectorAll('#compList .comp-row')[n].textContent),i,{timeout:240000}).catch(()=>{});
+ await p.click('#settingsTabs [data-tab="components"]'); await p.waitForSelector('#compList .comp-card');
+ for (const i of [1,2]) { const row=p.locator('#compList .comp-card').nth(i); await row.locator('button:has-text("Скачать")').click();
+   await p.waitForFunction(n=>/Скачать заново/.test(document.querySelectorAll('#compList .comp-card')[n].textContent),i,{timeout:240000}).catch(()=>{});
    const t=await row.textContent(); ok(/Скачать заново/.test(t),'компонент '+i+' установлен: '+t.replace(/\s+/g,' ').slice(0,90)); }
  await c.setOffline(true);
  const r=await p.evaluate(async()=>{ try{ const M=await AV.loadDenoise(); const w=await fetch('vendor/whisper/models/Xenova/whisper-tiny/config.json'); return {dn:!!M._rnnoise_create, cfg:w.status}; }catch(e){return {err:e.message}} });
