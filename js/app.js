@@ -1,6 +1,9 @@
 'use strict';
 /* Aspect Studio Video — интерфейс: очередь, превью, настройки, экспорт */
 (function () {
+  /* смешанные версии (index.html из старого кэша, скрипты новые): не стартуем, heal.js сам очистит кэш и перезагрузит страницу */
+  var mv = document.querySelector('meta[name="av-version"]');
+  if (mv && typeof APP_VERSION !== 'undefined' && mv.content !== APP_VERSION) return;
   var AV = window.AV;
   var video = $('#video'), pv = $('#preview'), pctx = pv.getContext('2d', { alpha: false });
   var Q = [], cur = -1, uid = 0;
