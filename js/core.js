@@ -2,7 +2,7 @@
 /* Защита от встраивания в чужую страницу (clickjacking): CSP через meta не умеет frame-ancestors, поэтому проверяем сами */
 if (window.top !== window.self) { document.documentElement.hidden = true; try { window.top.location.href = window.location.href; } catch (e) { /* браузер не разрешил, страница уже скрыта */ } }
 /* Aspect Studio Video — ядро: константы, настройки, журнал ошибок, уведомления. */
-const APP_VERSION = '2.7.2';
+const APP_VERSION = '2.8.0';
 const STORE_KEY = 'aspect-video-v1';
 const ERRLOG_KEY = 'aspect-video-errlog', ERRLOG_MAX = 30;
 const SEEN_KEY = 'aspect-video-seen', COUNT_KEY = 'aspect-video-count', THEME_KEY = 'aspect-video-theme', TAB_KEY = 'aspect-video-tab';
@@ -53,7 +53,7 @@ window.addEventListener('unhandledrejection', ev => logError(ev.reason, 'promise
 const DEF = {
   rw: 9, rh: 16, mode: 'blur', color: '#000000', faceTrack: false,
   rot: 0, flipH: false, flipV: false, speed: 1, fadeIn: 0, fadeOut: 0,
-  mute: false, vol: 100, norm: false, denoise: false, smooth: false,
+  mute: false, vol: 100, dateMode: 'src', norm: false, denoise: false, smooth: false,
   short: 1080, fps: 30, quality: 0.12, target: 0,
   nameTpl: '{name}_{ratio}', translit: true, counter: false, toFolder: false,
   wmOn: false, wmType: 'text', wmText: '@mychannel', wmColor: '#ffffff', wmShadow: true,
@@ -68,7 +68,7 @@ const SPEC = (() => {
   const I = (lo, hi) => ({ t: 'int', lo, hi }), N = (lo, hi) => ({ t: 'num', lo, hi }), E = list => ({ t: 'enum', list }), H = { t: 'hex' }, T = n => ({ t: 'str', n });
   return {
     rw: I(1, 100), rh: I(1, 100), mode: E(['blur', 'mirror', 'color', 'smart', 'crop']), color: H,
-    rot: E([0, 90, 180, 270]), speed: E([0.5, 0.75, 1, 1.5, 2]), fadeIn: N(0, 3), fadeOut: N(0, 3), vol: N(0, 200),
+    rot: E([0, 90, 180, 270]), speed: E([0.5, 0.75, 1, 1.5, 2]), dateMode: E(['src', 'now', 'none']), fadeIn: N(0, 3), fadeOut: N(0, 3), vol: N(0, 200),
     short: E([0, 480, 720, 1080, 1440, 2160]), fps: E([24, 30, 60]), quality: E([0.07, 0.12, 0.2]), target: E([0, 10, 25, 50, 100]),
     wmType: E(['text', 'image']), wmColor: H, wmOpacity: N(10, 100), wmSize: N(2, 20), wmMargin: N(0, 15), wmAngle: N(-60, 60), wmSec: N(1, 30),
     wmPos: E(['tl', 't', 'tr', 'l', 'c', 'r', 'bl', 'b', 'br', 'tile']), wmWhen: E(['all', 'first']),

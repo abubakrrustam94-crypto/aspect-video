@@ -55,6 +55,7 @@
 
   /* ---------- привязка настроек к элементам ---------- */
   function syncUI() {
+    if (window.AV && AV.renderInfo && window.AVTab === 'info') AV.renderInfo(item());
     $$('[data-key]').forEach(function (e) {
       var k = e.dataset.key;
       if (e.type === 'checkbox') e.checked = !!S[k];
@@ -162,6 +163,7 @@
     $$('#colSettings .card[data-tab]').forEach(function (c) { c.hidden = c.dataset.tab !== name; });
     ls.set(TAB_KEY, name);
     if (name === 'export') updateEstimate();
+    if (name === 'info') AV.renderInfo(item());
     document.dispatchEvent(new CustomEvent('avtab', { detail: name }));
   }
   window.setSettingsTab = setTab;
@@ -236,6 +238,7 @@
         var p = await probe(f);
         Q.push({ id: ++uid, file: f, url: p.url, name: f.name, vw: p.vw, vh: p.vh, dur: p.dur, start: 0, end: p.dur, track: null, noFace: false, caps: [], cuts: null, stab: null, tap: null, sound: null, rot: S.rot, fh: S.flipH, fv: S.flipV });
         added++;
+        (function (qi) { AV.readMeta(f, { vw: qi.vw, vh: qi.vh, dur: qi.dur }).then(function (m) { qi.meta = m; if (item() === qi) AV.renderInfo(qi); }); })(Q[Q.length - 1]);
       } catch (err) {
         toast('Не удалось открыть «' + f.name + '». Так бывает с HEVC/H.265, AVI и MKV: переведите в MP4 (H.264) или откройте в Chrome.', true);
         logError('Не открылся файл (' + (f.type || 'тип неизвестен') + ', ' + fmtBytes(f.size) + '): ' + (err && err.message), 'файл');
@@ -315,7 +318,7 @@
     try { await loadVideo(it); } catch (e) { toast('Не удалось показать видео «' + it.name + '».', true); return; }
     syncTrim(it);
     try { video.currentTime = Math.min(it.start + 0.05, it.dur / 2); } catch (e2) { /* ничего */ }
-    syncUI(); updateInfo(); draw(); renderCaps(); updateStabStatus(); updateSilStatus();
+    syncUI(); updateInfo(); draw(); renderCaps(); updateStabStatus(); updateSilStatus(); AV.renderInfo(it);
     makeStrip(it);
     if (S.mode === 'crop' && S.faceTrack && !it.track && !it.noFace) runFaces(it);
   }
@@ -565,6 +568,11 @@
       else { logError(err, 'субтитры (речь)'); toast('Не получилось: ' + ((err && err.message) || err), true); }
     } finally { AV.stopWhisper(); capAbort = null; lockOff(); showProgress(false); setBusy(false); }
   });
+  $('#infoCopy').addEventListener('click', function () {
+    var it = item(); if (!it || !it.meta) return;
+    var text = AV.metaText(it.meta);
+    (navigator.clipboard && navigator.clipboard.writeText ? navigator.clipboard.writeText(text) : Promise.reject()).then(function () { toast('Скопировано'); }, function () { toast('Не удалось скопировать. Выделите текст вручную.', true); });
+  });
   $('#capClear').addEventListener('click', function () { var it = item(); if (it) { it.caps = []; renderCaps(); draw(); } });
 
   /* ---------- стабилизация ---------- */
@@ -755,7 +763,7 @@
     });
     var common = {
       format: fmt, segs: segs, W: o.w, H: o.h, fps: fps, bitrate: bitrateFor(o, fps, dur, !!clip), speed: S.speed,
-      mute: clip ? true : S.mute, vol: S.vol / 100, norm: S.norm, denoise: !clip && S.denoise, smooth: !clip && S.smooth, fadeIn: clip ? 0 : S.fadeIn, fadeOut: clip ? 0 : S.fadeOut,
+      mute: clip ? true : S.mute, vol: S.vol / 100, norm: S.norm, denoise: !clip && S.denoise, dateMode: S.dateMode, srcDate: group[0] && group[0].meta && group[0].meta.created ? +group[0].meta.created : 0, smooth: !clip && S.smooth, fadeIn: clip ? 0 : S.fadeIn, fadeOut: clip ? 0 : S.fadeOut,
       tOff: clip ? (clip.start - group[0].start) / S.speed : 0,
       /* для записи в реальном времени (только один цельный отрезок) */
       video: video, file: group[0].file, start: segs[0].start, end: segs[0].end, r: segs[0].r,
@@ -916,6 +924,16 @@
       if (i === 0) info.prepend(el('span', 'res-badge', 'Готово'));
       var extra = (x.saved ? 'Сохранено в папку' : '') + (x.streamed ? (x.saved ? ' · ' : '') + 'Записано на диск' : '');
       if (extra) info.appendChild(el('small', '', extra));
+      var chk = el('small', 'res-check', 'Проверяю файл…'); info.appendChild(chk);
+      if (x.ext === 'mp4' || x.ext === 'webm') {
+        AV.readMeta(new File([x.blob], x.name, { type: x.blob.type }), { vw: x.o.w, vh: x.o.h, dur: 0 }).then(function (m) {
+          var bits = [], bad = false;
+          if (x.ext === 'mp4') { bad = !m.v || m.v.w !== x.o.w || m.v.h !== x.o.h; if (m.v && m.v.w) bits.push(m.v.w + '×' + m.v.h); }
+          if (m.v && m.v.codec) bits.push(m.v.codec); if (m.a && m.a.codec) bits.push(m.a.codec); if (x.ext === 'mp4' && m.dur) bits.push(fmtTime(m.dur));
+          chk.textContent = bad ? 'Размер в файле не совпал с ожидаемым: ' + bits.join(' · ') : 'Проверено: ' + (bits.join(' · ') || 'файл читается');
+          chk.classList.toggle('bad', bad);
+        }).catch(function () { chk.textContent = ''; });
+      } else chk.remove();
       var acts = el('div', 'res-acts');
       var dl = el('a', 'btn btn-main', 'Скачать'); dl.href = x.url; dl.download = x.name; dl.prepend(svgIcon('save'));
       acts.append(dl);
@@ -1062,7 +1080,7 @@
   /* ---------- старт ---------- */
   $('#folderCard').hidden = !window.showDirectoryPicker;
   if (!window.showDirectoryPicker && S.toFolder) set('toFolder', false, true);
-  setTab(['frame', 'video', 'wm', 'export', 'components', 'about'].indexOf(ls.get(TAB_KEY)) >= 0 ? ls.get(TAB_KEY) : 'frame');
+  setTab(['frame', 'video', 'wm', 'export', 'info', 'components', 'about'].indexOf(ls.get(TAB_KEY)) >= 0 ? ls.get(TAB_KEY) : 'frame');
   syncUI();
   initResume().then(function () { return AV.cleanOpfs(); }, function () { return AV.cleanOpfs(); }).then(initProject, initProject);
   window.AVApp = {

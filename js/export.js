@@ -135,8 +135,15 @@
         });
         return {
           target: target, stream: true, fastStart: false, name: name,
-          finish: async function () {
+          finish: async function (secs) {
             await chain; await w.close();
+            if (secs !== undefined && fmt === 'mp4') {          // дата создания в готовом файле
+              try {
+                var f0 = await fh.getFile(), w2 = await fh.createWritable({ keepExistingData: true });
+                await AV.stampMp4(async function (o, l) { return new Uint8Array(await f0.slice(o, o + l).arrayBuffer()); }, function (o, b) { return w2.write({ type: 'write', position: o, data: b }); }, f0.size, secs);
+                await w2.close();
+              } catch (e4) { /* дата останется сегодняшней */ }
+            }
             var f = await fh.getFile();
             return f.slice(0, f.size, mime);
           },
@@ -154,7 +161,12 @@
     var t = new M.ArrayBufferTarget();
     return {
       target: t, stream: false, fastStart: 'in-memory',
-      finish: async function () { return new Blob([t.buffer], { type: mime }); },
+      finish: async function (secs) {
+        if (secs !== undefined && fmt === 'mp4') {
+          try { var u = new Uint8Array(t.buffer); await AV.stampMp4(async function (o, l) { return u.subarray(o, o + l); }, async function (o, b) { u.set(b, o); }, u.length, secs); } catch (e5) { /* дата останется сегодняшней */ }
+        }
+        return new Blob([t.buffer], { type: mime });
+      },
       abort: async function () { /* память освободит сборщик мусора */ }
     };
   }
@@ -316,7 +328,8 @@
       if (aenc) { await aenc.flush(); if (aerr) throw aerr; aenc.close(); }
       o.onProgress(0.99, out.stream ? 'Дописываю файл на диск…' : 'Собираю файл…');
       muxer.finalize();
-      var blob = await out.finish();
+      var stampSecs = o.dateMode === 'none' ? 0 : (o.dateMode !== 'now' && o.srcDate ? Math.floor(o.srcDate / 1000) : undefined);
+      var blob = await out.finish(stampSecs);
       ok = true;
       closeSrcs();
       if (o.smooth && speed < 1 && !ipUsed) warnings.push('Плавное замедление не сработало: нужен MP4 или MOV, который читается быстрым способом. Видео сохранено обычным замедлением.');

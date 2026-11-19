@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.8.0 — Вкладка «Данные»
+- `js/meta.js`: чтение метаданных (MP4/MOV: mp4box + разбор moov — ©xyz, loci, iTunes `data`, mdta keys/ilst; WebM: EBML), `AV.readMeta`, `AV.metaRows`, `AV.metaAfter`, `AV.renderInfo`, `AV.metaText`, `AV.stampMp4`.
+- Настройка `dateMode` (`src`/`now`/`none`): дата создания пишется в `mvhd/tkhd/mdhd` MP4 после финализации; WebM остаётся с датой сохранения.
+- Карточка результата: строка `.res-check` с проверкой даты, размера и длительности.
+
 ## 2.7.2 — Исправление при обновлении
 - `app.js` не стартует, если `meta av-version` (из старого кэшированного index.html) не совпадает с `APP_VERSION`: раньше падал на `#capAuto` и писал ошибку в журнал до того, как `heal.js` перезагружал страницу.
 

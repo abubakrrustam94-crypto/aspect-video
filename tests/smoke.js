@@ -6,7 +6,7 @@ const http = require('http'), fs = require('fs'), path = require('path');
 const [root, fa, fb, ff, outDir] = process.argv.slice(2);
 let fails = 0;
 const ok = (c, m) => { console.log((c ? 'ok   ' : 'FAIL ') + m); if (!c) fails++; };
-const mime = { '.js': 'text/javascript', '.html': 'text/html', '.css': 'text/css', '.png': 'image/png', '.webmanifest': 'application/json', '.woff2': 'font/woff2', '.wasm': 'application/wasm', '.json': 'application/json', '.bin': 'application/octet-stream' };
+const mime = { '.js': 'text/javascript', '.mjs': 'text/javascript', '.html': 'text/html', '.css': 'text/css', '.png': 'image/png', '.webmanifest': 'application/json', '.woff2': 'font/woff2', '.wasm': 'application/wasm', '.json': 'application/json', '.bin': 'application/octet-stream' };
 const srv = http.createServer((q, r) => {
   let p = path.join(root, decodeURIComponent(q.url.split('?')[0])); if (p.endsWith('/')) p += 'index.html';
   fs.readFile(p, (e, d) => { if (e) { r.writeHead(404); r.end(); return; } r.writeHead(200, { 'content-type': mime[path.extname(p)] || 'application/octet-stream' }); r.end(d); });
@@ -187,7 +187,7 @@ const srv = http.createServer((q, r) => {
 
     /* О программе */
     await pg.click('#settingsTabs [data-tab="about"]');
-    ok((await pg.textContent('#appVersion')) === "v2.7.2", 'версия показана');
+    ok((await pg.textContent('#appVersion')) === "v2.8.0", 'версия показана');
     await pg.click('#wnOpenBtn');
     await pg.waitForSelector('#wnList .wn-rel', { timeout: 5000 });
     ok((await pg.locator('#wnList .wn-rel').count()) >= 2, 'что нового: записей ' + (await pg.locator('#wnList .wn-rel').count()));

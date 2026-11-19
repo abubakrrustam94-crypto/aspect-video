@@ -493,3 +493,22 @@ details.wn-rel .wn-ver { background: var(--md-sys-color-surface-container-highes
 .comp-title b { font-size: 1rem; overflow-wrap: break-word; }
 .comp-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .comp-head { gap: 10px; }
+
+/* ===== Данные о файле (v2.8.0) ===== */
+.info-list { display: grid; grid-template-columns: minmax(0, max-content) minmax(0, 1fr); gap: 0; margin: 0; border-radius: 16px; overflow: hidden; background: var(--md-sys-color-surface-container-high); }
+.info-list dt, .info-list dd { margin: 0; padding: 10px 14px; border-top: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant, currentColor) 35%, transparent); overflow-wrap: anywhere; font-size: .88rem; }
+.info-list dt:first-of-type, .info-list dt:first-of-type + dd { border-top: none; }
+.info-list dt { padding-right: 8px; font-size: .9rem; color: var(--md-sys-color-on-surface-variant); }
+.info-list dt { max-width: 42vw; }
+.info-list dd { font-weight: 600; font-variant-numeric: tabular-nums; }
+.info-warn { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; margin-bottom: 12px; border-radius: 16px; background: color-mix(in srgb, var(--md-sys-color-error) 14%, var(--md-sys-color-surface-container-high)); }
+.info-warn .ic { width: 22px; height: 22px; flex: none; color: var(--md-sys-color-error); margin-top: 2px; }
+.info-warn div { display: grid; gap: 3px; font-size: .86rem; line-height: 1.4; }
+.info-after { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.info-after li { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 10px 14px; border-radius: 14px; background: var(--md-sys-color-surface-container-high); font-size: .86rem; }
+.info-after li span { color: var(--md-sys-color-on-surface-variant); }
+.info-after li b { text-align: right; overflow-wrap: anywhere; }
+.info-after li.good b { color: var(--md-sys-color-success); }
+.info-after li.warn b { color: var(--md-sys-color-error); }
+.res-check { font-size: .78rem; opacity: .85; }
+.res-check.bad { color: var(--md-sys-color-error); opacity: 1; font-weight: 700; }
