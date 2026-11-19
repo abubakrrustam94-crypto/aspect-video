@@ -181,6 +181,53 @@
       'vendor/blazeface/blazeface-back.json': 'a765f7b2a6c1d841ecc0b0686e5f51b141b39b7bcdf2888542dc9d9fc4384a87',
       'vendor/blazeface/blazeface-back.bin': 'dc9a97fdc50bc43216554bdd69aa3e7b9361a519ee7bdd996a2f69a98a6f9b72'
     }
+  }, {
+    id: 'denoise', name: 'Шумоподавление', size: '~0,1 МБ',
+    desc: 'Нужен для «Убрать шум» на вкладке «Видео». Нейросеть RNNoise, работает на устройстве.',
+    files: ['vendor/rnnoise/rnnoise.js', 'vendor/rnnoise/rnnoise.wasm'],
+    sha: {
+      'vendor/rnnoise/rnnoise.js': '83a86f528a0f4d5c61a84be40dac9f15e5d114f24971bd5953f7f21879bc9bdf',
+      'vendor/rnnoise/rnnoise.wasm': '677147b9248aedc0a00de79dc090d1ecead37c08c8bb773a790da16109d2c487'
+    }
+  }, {
+    id: 'speech', name: 'Распознавание речи', size: '~60 МБ',
+    desc: 'Нужен для «Распознать речь» в подписях: автосубтитры. Модель Whisper tiny, работает на устройстве, звук никуда не уходит.',
+    files: [
+      'vendor/whisper/models/Xenova/whisper-tiny/added_tokens.json',
+      'vendor/whisper/models/Xenova/whisper-tiny/config.json',
+      'vendor/whisper/models/Xenova/whisper-tiny/generation_config.json',
+      'vendor/whisper/models/Xenova/whisper-tiny/merges.txt',
+      'vendor/whisper/models/Xenova/whisper-tiny/normalizer.json',
+      'vendor/whisper/models/Xenova/whisper-tiny/onnx/decoder_model_merged_quantized.onnx',
+      'vendor/whisper/models/Xenova/whisper-tiny/onnx/encoder_model_quantized.onnx',
+      'vendor/whisper/models/Xenova/whisper-tiny/preprocessor_config.json',
+      'vendor/whisper/models/Xenova/whisper-tiny/processor_config.json',
+      'vendor/whisper/models/Xenova/whisper-tiny/special_tokens_map.json',
+      'vendor/whisper/models/Xenova/whisper-tiny/tokenizer.json',
+      'vendor/whisper/models/Xenova/whisper-tiny/tokenizer_config.json',
+      'vendor/whisper/models/Xenova/whisper-tiny/vocab.json',
+      'vendor/whisper/ort-wasm-simd-threaded.mjs',
+      'vendor/whisper/ort-wasm-simd-threaded.wasm',
+      'vendor/whisper/transformers.min.js'
+    ],
+    sha: {
+      'vendor/whisper/models/Xenova/whisper-tiny/added_tokens.json': 'ce949fe720c14311cb6c446e69cfe340dc669d7b006077a6feed6ae571dd7e88',
+      'vendor/whisper/models/Xenova/whisper-tiny/config.json': '2b2e4e519084e0ea028b19b153f95202735a971870d6844aa26e559edd292e94',
+      'vendor/whisper/models/Xenova/whisper-tiny/generation_config.json': '68ac791fcb4999461a313472125042934656240ba1cba7d1c2627fcbb19ac24c',
+      'vendor/whisper/models/Xenova/whisper-tiny/merges.txt': '2df2990a395e35e8dfbc7511e08c12d56018d8d04691e0133e5d63b21e154dc6',
+      'vendor/whisper/models/Xenova/whisper-tiny/normalizer.json': 'bf1c507dc8724ca9cf9903640dacfb69dae2f00edee4f21ceba106a7392f26dd',
+      'vendor/whisper/models/Xenova/whisper-tiny/onnx/decoder_model_merged_quantized.onnx': '6c0c125986b007d2e3734bec84c18bda0152071b90b87fadac6d7764499927a0',
+      'vendor/whisper/models/Xenova/whisper-tiny/onnx/encoder_model_quantized.onnx': 'fd9d995b9dcb0520f0dbf6cf68651af639fc385f594d9d876e69ca2802dc438e',
+      'vendor/whisper/models/Xenova/whisper-tiny/preprocessor_config.json': 'a6a76d28c93edb273669eb9e0b0636a2bddbb1272c3261e47b7ca6dfdbac1b8d',
+      'vendor/whisper/models/Xenova/whisper-tiny/processor_config.json': 'c0bf2ef5d6acab18933e7f406f5ca5b641a96e3c072d5fae7dbf786152607f68',
+      'vendor/whisper/models/Xenova/whisper-tiny/special_tokens_map.json': 'e67ae3a0aaa99abcd9f187138e12db1f65c16a14761c50ef10eef2c174a7a691',
+      'vendor/whisper/models/Xenova/whisper-tiny/tokenizer.json': '27fc476bfe7f17299480be2273fc0608e4d5a99aba2ab5dec5374b4482d1a566',
+      'vendor/whisper/models/Xenova/whisper-tiny/tokenizer_config.json': '2a4c4281cf9f51ac6ccc406fdc711a087afe6530f671fa7b80953edc498275ce',
+      'vendor/whisper/models/Xenova/whisper-tiny/vocab.json': '50d6a919f0a0601d56a04eb583c780d18553aa388254ba3158eb6a00f13e2c1a',
+      'vendor/whisper/ort-wasm-simd-threaded.mjs': 'c57ca56328877353a575e51bbca6f18450027d6c9bf2307a2cb2c41363b4de9f',
+      'vendor/whisper/ort-wasm-simd-threaded.wasm': '06ba057753da3847e4c24f02d91ab133455b0817c69a44993a9a53a2146df9e3',
+      'vendor/whisper/transformers.min.js': '8b5a3171f8876bab2b1820a7d65eb87628e3d30bb5ea85b9dd398e76eb34decb'
+    }
   }];
   var abs = function (p) { return new URL(p, location.href).href; };
   /* Компоненты лежат в файловой системе сайта (OPFS, папка aspect-video-components), а не в кэше сайта: их не сносит обновление версии.

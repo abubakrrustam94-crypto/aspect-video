@@ -76,6 +76,7 @@
     $('#flipH').setAttribute('aria-pressed', fhOn); $('#flipH').classList.toggle('active', fhOn);
     $('#flipV').setAttribute('aria-pressed', fvOn); $('#flipV').classList.toggle('active', fvOn);
     $('#rotAll').hidden = Q.length < 2;
+    $('#smoothRow').hidden = S.speed >= 1;
     $('#colorRow').hidden = S.mode !== 'color';
     $('#faceRow').hidden = S.mode !== 'crop';
     $('#tapNote').hidden = !(S.faceMode === 'tap' && S.faceTrack);
@@ -546,6 +547,21 @@
       toast('Добавлено подписей: ' + list.length);
     } catch (e) { logError(e, 'субтитры'); toast('Не удалось прочитать файл.', true); }
   });
+  /* автосубтитры: Whisper на устройстве */
+  var capAbort = null;
+  $('#capAuto').addEventListener('click', async function () {
+    var it = item(); if (!it || busy) { if (!it) toast('Сначала выберите видео.'); return; }
+    capAbort = new AbortController(); setBusy(true); showProgress(true); setProgress('Распознаю речь', 0, 'Подготовка…'); lockOn();
+    var title = 'Распознаю речь';
+    try {
+      var list = await AV.transcribe(it.file, it.dur, it.start, it.end, { lang: $('#capLang').value, signal: capAbort.signal, onProgress: function (f, t) { setProgress(title, f, t); } });
+      if (!list.length) { toast('Речь не найдена. Если в ролике говорят тихо, подними громкость или выбери язык вручную.', true); }
+      else { it.caps = it.caps.concat(list.slice(0, 500)); renderCaps(); draw(); toast('Распознано подписей: ' + list.length + '. Проверь текст: нейросеть бывает неточной.'); }
+    } catch (err) {
+      if (err && err.message === 'abort') toast('Распознавание остановлено.');
+      else { logError(err, 'субтитры (речь)'); toast('Не получилось: ' + ((err && err.message) || err), true); }
+    } finally { AV.stopWhisper(); capAbort = null; lockOff(); showProgress(false); setBusy(false); }
+  });
   $('#capClear').addEventListener('click', function () { var it = item(); if (it) { it.caps = []; renderCaps(); draw(); } });
 
   /* ---------- стабилизация ---------- */
@@ -694,7 +710,7 @@
     });
     if (!b) { renderQueue(); updateFaceStatus(); }
   }
-  $('#pCancel').addEventListener('click', function () { if (abort) abort.abort(); });
+  $('#pCancel').addEventListener('click', function () { if (abort) abort.abort(); if (capAbort) capAbort.abort(); });
 
   /* Для экспорта у каждого файла своё скрытое видео: так склейка читает несколько файлов, а превью не мешает */
   var exVids = new Map();
@@ -736,7 +752,7 @@
     });
     var common = {
       format: fmt, segs: segs, W: o.w, H: o.h, fps: fps, bitrate: bitrateFor(o, fps, dur, !!clip), speed: S.speed,
-      mute: clip ? true : S.mute, vol: S.vol / 100, norm: S.norm, fadeIn: clip ? 0 : S.fadeIn, fadeOut: clip ? 0 : S.fadeOut,
+      mute: clip ? true : S.mute, vol: S.vol / 100, norm: S.norm, denoise: !clip && S.denoise, smooth: !clip && S.smooth, fadeIn: clip ? 0 : S.fadeIn, fadeOut: clip ? 0 : S.fadeOut,
       tOff: clip ? (clip.start - group[0].start) / S.speed : 0,
       /* для записи в реальном времени (только один цельный отрезок) */
       video: video, file: group[0].file, start: segs[0].start, end: segs[0].end, r: segs[0].r,

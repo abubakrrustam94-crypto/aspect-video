@@ -5,7 +5,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; connect-src 'self' blob: data:; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, viewport-fit=cover">
-<meta name="av-version" content="2.6.0">
+<meta name="av-version" content="2.7.0">
 <meta name="theme-color" content="#0f0f14">
 <meta name="description" content="Меняет формат видео без обрезки: Reels, Shorts, пост 4:5, YouTube. Всё работает в браузере, видео никуда не загружается.">
 <title>Aspect Studio Video</title>
@@ -259,6 +259,10 @@
               <button type="button" data-val="2">2×</button>
             </div>
             <p class="note">Звук ускоряется и замедляется вместе с видео, высота тона при этом меняется.</p>
+            <div id="smoothRow" hidden>
+              <label class="switch"><input type="checkbox" data-key="smooth"><span class="track"></span><span>Плавное замедление</span></label>
+              <p class="note">Недостающие кадры достраиваются по движению, замедленное видео не дёргается. Сохранение дольше. Работает с MP4 и MOV, в превью не видно.</p>
+            </div>
           </div>
           <div>
             <span class="field-label">Появление из чёрного</span>
@@ -279,6 +283,7 @@
             <div class="range-row"><input type="range" data-key="vol" min="0" max="200" step="5" aria-label="Громкость"><output data-out="vol" data-unit="%"></output></div>
           </div>
           <label class="switch"><input type="checkbox" data-key="norm"><span class="track"></span><span>Выровнять громкость (−14 LUFS)</span></label>
+          <label class="switch"><input type="checkbox" data-key="denoise"><span class="track"></span><span>Убрать шум</span></label>
         </div>
         <p class="note">«Выровнять» подгоняет среднюю громкость к −14 LUFS, как у YouTube и соцсетей: тихое видео станет громче, слишком громкое тише. Если для этого пришлось бы превысить предел без искажений, громкость поднимается меньше. Громкость и затухание работают в быстром режиме сохранения.</p>
       </section>
@@ -374,8 +379,16 @@
         <div class="row" style="margin:0">
           <button type="button" class="btn btn-tonal btn-sm" id="capAdd"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg> Подпись в этом месте</button>
           <button type="button" class="btn btn-outlined btn-sm" id="capImport">Из SRT / VTT</button>
+          <button type="button" class="btn btn-tonal btn-sm" id="capAuto"><svg class="ic" aria-hidden="true"><use href="#i-activity"/></svg> Распознать речь</button>
           <button type="button" class="btn btn-outlined btn-sm" id="capClear">Убрать все</button>
         </div>
+        <div class="row" style="margin:10px 0 0" id="capAutoRow">
+          <label class="field-label" for="capLang" style="margin:0">Язык речи</label>
+          <select id="capLang" class="select">
+            <option value="">Определить сам</option><option value="ru" data-i18n-skip>Русский</option><option value="en" data-i18n-skip>English</option><option value="tg" data-i18n-skip>Тоҷикӣ</option><option value="uz" data-i18n-skip>Oʻzbek</option><option value="tr" data-i18n-skip>Türkçe</option><option value="ar" data-i18n-skip>العربية</option>
+          </select>
+        </div>
+        <p class="note" id="capAutoNote">Распознавание идёт на устройстве, звук никуда не отправляется. Модель Whisper tiny точна для русского и английского, для остальных языков ошибается чаще: проверь текст. Ограничение: 20 минут за раз.</p>
         <input type="file" id="capFile" accept=".srt,.vtt,text/vtt,text/plain" hidden>
         <div class="caps" id="capList" role="list"></div>
         <div class="stack" style="margin-top:14px">
@@ -637,6 +650,9 @@
 <script src="js/audio.js"></script>
 <script src="js/session.js"></script>
 <script src="js/project.js"></script>
+<script src="js/denoise.js"></script>
+<script src="js/interp.js"></script>
+<script src="js/subsai.js"></script>
 <script src="js/local.js"></script>
 <script src="js/export.js"></script>
 <script src="js/app.js"></script>

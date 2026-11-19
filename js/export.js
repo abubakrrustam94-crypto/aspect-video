@@ -243,6 +243,10 @@
       }
     }
     var acfg = ACFG[fmt];
+    if (audioOn && o.denoise) {
+      try { var dM = await AV.loadDenoise(); o.dn = [AV.makeDenoiser(dM), AV.makeDenoiser(dM)]; }
+      catch (edn) { warnings.push('Шумоподавление не включилось: ' + ((edn && edn.message) || 'модуль не загрузился') + ' Звук сохранён как есть.'); o.dn = null; }
+    }
     var est = (o.bitrate + (audioOn ? acfg.bitrate : 0)) * outDur / 8 * 1.05;
     var out = await openTarget(fmt, est);
     var muxOpts = { target: out.target, firstTimestampBehavior: 'offset' };
@@ -269,11 +273,22 @@
       }
       var keyEvery = Math.max(1, Math.round(fps * 2)), cs = { primaries: 'bt709', transfer: 'bt709', matrix: 'bt709', fullRange: false };
       var fi = 0, sampleOff = 0, feeder = null;
+      var ip = o.smooth && speed < 1 ? AV.makeInterp(Math.min(1920, Math.max(W, H))) : null, ipUsed = false;
+      /* кадр между двумя настоящими: пара кадров k/fps и (k+1)/fps, ближе к краям отдаём настоящий кадр */
+      async function smoothFrame(src, ipo, t) {
+        var sf = src.fps, k = Math.floor(t * sf + 1e-6), alpha = t * sf - k, ta = k / sf, tb = (k + 1) / sf;
+        if (alpha < 0.06 || tb > (g.dur || g.end) - 0.5 / sf) return src.at(t);
+        var okp = await ipo.pair(k, function () { return src.at(ta + 1e-4); }, function () { return src.at(tb + 1e-4); });
+        if (!okp) return src.at(t);
+        ipUsed = true;
+        return alpha > 0.94 ? ipo.real(true) : ipo.frame(alpha);
+      }
       for (var s2 = 0; s2 < segs.length; s2++) {
         var g = segs[s2], rr = rOf(g);
         vid = await g.load();
         vid.pause();
         var fsv = await frames(g, vid); feeder = null;
+        if (ip) ip.reset();
         if (audioOn) {
           var dr = await getAudio(g);
           feeder = await makeSegAudio(aenc, function () { return aerr; }, dr && dr.open ? dr : null, g, ns[s2] / fps, sampleOff, o, outDur, speed, segs);
@@ -282,7 +297,8 @@
           if (o.signal.aborted) throw abortErr();
           if (encErr) throw encErr;
           var ts = Math.min(g.start + (i / fps) * speed, Math.max(g.start, g.end - 0.001));
-          AV.renderAt(ctx, W, H, await fsv.at(ts), rr, ts, fi / fps + (o.tOff || 0));
+          var img = ip && fsv.fps >= 5 ? await smoothFrame(fsv, ip, ts) : await fsv.at(ts);
+          AV.renderAt(ctx, W, H, img, rr, ts, fi / fps + (o.tOff || 0));
           var init = { timestamp: Math.round((fi * 1e6) / fps), duration: Math.round(1e6 / fps) }, frame;
           try { frame = new VideoFrame(canvas, Object.assign({ colorSpace: cs }, init)); } catch (e0) { frame = new VideoFrame(canvas, init); }
           venc.encode(frame, { keyFrame: fi % keyEvery === 0 });
@@ -303,9 +319,11 @@
       var blob = await out.finish();
       ok = true;
       closeSrcs();
+      if (o.smooth && speed < 1 && !ipUsed) warnings.push('Плавное замедление не сработало: нужен MP4 или MOV, который читается быстрым способом. Видео сохранено обычным замедлением.');
       return { blob: blob, ext: fmt, warnings: warnings, streamed: out.stream, opfsName: out.name, engine: Object.keys(engines).join('+') };
     } finally {
       closeSrcs();
+      if (o.dn) { o.dn.forEach(function (d) { d.close(); }); o.dn = null; }
       if (feeder) feeder.close();                      // звуковой декодер текущего отрезка при ошибке или отмене
       if (!ok) {
         try { if (venc && venc.state !== 'closed') venc.close(); } catch (e4) { /* ничего */ }
@@ -432,6 +450,7 @@
               }
             }
           }
+          if (o.dn) for (var dc = 0; dc < 2; dc++) o.dn[dc].process(data.subarray(dc * n, (dc + 1) * n));
           var ad = new AudioData({ format: 'f32-planar', sampleRate: SR, numberOfFrames: n, numberOfChannels: 2, timestamp: Math.round(((off + j0) / SR) * 1e6), data: data });
           aenc.encode(ad);
           ad.close();

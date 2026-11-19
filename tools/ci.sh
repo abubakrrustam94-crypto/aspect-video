@@ -24,6 +24,8 @@ run block2   node tests/block2.js "$S" "$FX/tone.webm" "$FX/shaky.webm" "$FX/sub
 run block2b  node tests/block2b.js "$S" "$FX" "$OUT"
 run block3   node tests/block3.js "$S" "$FX" "$OUT"
 run block5   node tests/block5.js "$S" "$FX" "$OUT"
+run block6   node tests/block6.js "$S" "$FX" "$OUT"
+run components node tests/components.js "$S" "$FX"
 run chaos    node tests/chaos.js "$S" "$FX" "$OUT"
 run resume   node tests/resume.js "$S" "$FX/a.webm" "$FX/b.webm" "$FX/in.webm"
 [ -d node_modules/axe-core ] && run a11y env NODE_PATH="$S/node_modules" node tests/a11y.js "$S" "$FX/a.webm"

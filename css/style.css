@@ -454,3 +454,9 @@ details.wn-rel .wn-ver { background: var(--md-sys-color-surface-container-highes
 .res-card .res-acts { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
 .res-card .res-acts .btn { justify-content: center; text-align: center; min-height: 44px; display: inline-flex; align-items: center; gap: 7px; }
 .res-card.fresh .btn-tonal { background: var(--md-sys-color-surface); color: var(--md-sys-color-on-surface); }
+
+/* ===== v2.7.0: язык речи, плавное замедление ===== */
+#capAutoRow { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+.select { min-height: 44px; padding: 0 14px; border-radius: 14px; border: 1px solid var(--md-sys-color-outline-variant, currentColor); background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-on-surface); font: inherit; max-width: 100%; }
+#smoothRow { margin-top: 10px; }
+#smoothRow[hidden] { display: none; }

@@ -2,7 +2,7 @@
 /* Защита от встраивания в чужую страницу (clickjacking): CSP через meta не умеет frame-ancestors, поэтому проверяем сами */
 if (window.top !== window.self) { document.documentElement.hidden = true; try { window.top.location.href = window.location.href; } catch (e) { /* браузер не разрешил, страница уже скрыта */ } }
 /* Aspect Studio Video — ядро: константы, настройки, журнал ошибок, уведомления. */
-const APP_VERSION = '2.6.0';
+const APP_VERSION = '2.7.0';
 const STORE_KEY = 'aspect-video-v1';
 const ERRLOG_KEY = 'aspect-video-errlog', ERRLOG_MAX = 30;
 const SEEN_KEY = 'aspect-video-seen', COUNT_KEY = 'aspect-video-count', THEME_KEY = 'aspect-video-theme', TAB_KEY = 'aspect-video-tab';
@@ -53,7 +53,7 @@ window.addEventListener('unhandledrejection', ev => logError(ev.reason, 'promise
 const DEF = {
   rw: 9, rh: 16, mode: 'blur', color: '#000000', faceTrack: false,
   rot: 0, flipH: false, flipV: false, speed: 1, fadeIn: 0, fadeOut: 0,
-  mute: false, vol: 100, norm: false,
+  mute: false, vol: 100, norm: false, denoise: false, smooth: false,
   short: 1080, fps: 30, quality: 0.12, target: 0,
   nameTpl: '{name}_{ratio}', translit: true, counter: false, toFolder: false,
   wmOn: false, wmType: 'text', wmText: '@mychannel', wmColor: '#ffffff', wmShadow: true,

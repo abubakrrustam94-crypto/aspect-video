@@ -83,8 +83,9 @@
     var mx = tr.matrix ? Array.prototype.slice.call(Object.values(tr.matrix)).map(function (v) { return v / 65536; }) : [1, 0];
     var theta = Math.atan2(mx[1] || 0, mx[0] === undefined ? 1 : mx[0]);
     var rot = ((Math.round(theta / (Math.PI / 2)) * 90) % 360 + 360) % 360;
-    var N = samples.length, minCts = Infinity, i;
-    for (i = 0; i < N; i++) if (samples[i].cts < minCts) minCts = samples[i].cts;
+    var N = samples.length, minCts = Infinity, maxCts = -Infinity, i;
+    for (i = 0; i < N; i++) { if (samples[i].cts < minCts) minCts = samples[i].cts; if (samples[i].cts > maxCts) maxCts = samples[i].cts; }
+    var fps = N > 1 && maxCts > minCts ? (N - 1) / ((maxCts - minCts) / samples[0].timescale) : 0;
     var pts = new Float64Array(N), syncs = [];
     for (i = 0; i < N; i++) { pts[i] = (samples[i].cts - minCts) / samples[i].timescale; if (samples[i].is_sync) syncs.push(i); }
     if (!syncs.length || syncs[0] !== 0) throw new Error('нет ключевого кадра в начале');
@@ -136,7 +137,7 @@
     }
 
     return {
-      kind: 'decoder', rot: rot, codec: tr.codec, frames: N,
+      kind: 'decoder', rot: rot, codec: tr.codec, frames: N, fps: fps,
       at: async function (t) {
         var tt = t + 1e-3;
         if (!dec || (prev && tt < prev.timestamp / 1e6 - 2e-3) || (!prev && !next && !pending.length && maxFedPts >= 0 && tt < pts[0]) ||
@@ -171,6 +172,7 @@
     return {
       get kind() { return failed ? 'seek' : 'decoder'; },
       get note() { return note; },
+      get fps() { return !failed && fast ? fast.fps : 0; },     // частота кадров исходника (0 — неизвестна)
       at: async function (t) {
         if (!failed) {
           try {
