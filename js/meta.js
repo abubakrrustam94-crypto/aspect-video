@@ -202,6 +202,82 @@
     return n;
   };
 
+
+  /* ---------- Запись названия и координат в готовый MP4 (блок udta внутри moov) ---------- */
+  function u32(n) { return [n >>> 24 & 255, n >>> 16 & 255, n >>> 8 & 255, n & 255]; }
+  function qtText(tag, text) {                           // ©nam / ©xyz в виде QuickTime: длина, язык, текст
+    var tb = new TextEncoder().encode(text).subarray(0, 60000), n = 12 + tb.length, o = new Uint8Array(n);
+    o.set(u32(n), 0); o.set([0xA9, tag.charCodeAt(0), tag.charCodeAt(1), tag.charCodeAt(2)], 4);
+    o[8] = (tb.length >> 8) & 255; o[9] = tb.length & 255; o[10] = 0x55; o[11] = 0xC4; o.set(tb, 12);
+    return o;
+  }
+  function iso6709(g) {
+    var la = g.lat, lo = g.lon;
+    return (la >= 0 ? '+' : '-') + Math.abs(la).toFixed(4).padStart(7, '0') + (lo >= 0 ? '+' : '-') + Math.abs(lo).toFixed(4).padStart(8, '0') + '/';
+  }
+  /* title — строка, gps — {lat, lon} или null. Возвращает готовый блок udta или null, если писать нечего */
+  AV.metaUdta = function (title, gps) {
+    var parts = [];
+    title = String(title || '').trim();
+    if (title) parts.push(qtText('nam', title));
+    if (gps && isFinite(gps.lat) && isFinite(gps.lon)) parts.push(qtText('xyz', iso6709(gps)));
+    if (!parts.length) return null;
+    var n = 8; parts.forEach(function (p) { n += p.length; });
+    var o = new Uint8Array(n), at = 8; o.set(u32(n), 0); o.set([0x75, 0x64, 0x74, 0x61], 4);
+    parts.forEach(function (p) { o.set(p, at); at += p.length; });
+    return o;
+  };
+  function topBoxes(u8) {
+    var list = [], off = 0;
+    while (off + 8 <= u8.length) {
+      var sz = be32(u8, off), ty = String.fromCharCode(u8[off + 4], u8[off + 5], u8[off + 6], u8[off + 7]), hs = 8;
+      if (sz === 1) { sz = be32(u8, off + 8) * 4294967296 + be32(u8, off + 12); hs = 16; } else if (sz === 0) sz = u8.length - off;
+      if (sz < hs || off + sz > u8.length) break;
+      list.push({ off: off, size: sz, hs: hs, type: ty }); off += sz;
+    }
+    return list;
+  }
+  /* Файл в памяти: добавляет udta в конец moov. Если moov стоит перед данными, сдвигает указатели stco/co64.
+     Возвращает новый Uint8Array или null (moov не найден, 64-битный заголовок и прочее необычное: файл остаётся как есть). */
+  AV.addUdta = function (u8, udta) {
+    if (!udta) return null;
+    var top = topBoxes(u8), moov = null, i;
+    for (i = 0; i < top.length; i++) if (top[i].type === 'moov') moov = top[i];
+    if (!moov || moov.hs !== 8) return null;
+    var add = udta.length, out = new Uint8Array(u8.length + add), end = moov.off + moov.size;
+    out.set(u8.subarray(0, end), 0); out.set(udta, end); out.set(u8.subarray(end), end + add);
+    var nsz = moov.size + add; out.set(u32(nsz), moov.off);
+    if (end < u8.length) {                                // за moov есть данные: смещаем указатели на них
+      var dv = new DataView(out.buffer);
+      (function walk(off, stop) {
+        while (off + 8 <= stop) {
+          var sz = dv.getUint32(off), ty = String.fromCharCode(out[off + 4], out[off + 5], out[off + 6], out[off + 7]);
+          if (sz < 8 || off + sz > stop) return;
+          if (ty === 'trak' || ty === 'mdia' || ty === 'minf' || ty === 'stbl') walk(off + 8, off + sz);
+          else if (ty === 'stco') { var n = dv.getUint32(off + 12); for (var k = 0; k < n; k++) { var p = off + 16 + k * 4; if (dv.getUint32(p) >= end) dv.setUint32(p, dv.getUint32(p) + add); } }
+          else if (ty === 'co64') { var n2 = dv.getUint32(off + 12); for (var k2 = 0; k2 < n2; k2++) { var p2 = off + 16 + k2 * 8, v = dv.getUint32(p2) * 4294967296 + dv.getUint32(p2 + 4); if (v >= end) { v += add; dv.setUint32(p2, Math.floor(v / 4294967296)); dv.setUint32(p2 + 4, v >>> 0); } } }
+          off += sz;
+        }
+      })(moov.off + 8, moov.off + nsz);
+    }
+    return out;
+  };
+  /* Файл на диске: работает, только когда moov последний (так пишет потоковая запись). Возвращает { off, bytes } для записи с позиции off, либо null. */
+  AV.udtaTail = async function (read, size, udta) {
+    if (!udta) return null;
+    var off = 0, last = null, guard = 0;
+    while (off + 8 <= size && guard++ < 4000) {
+      var h = await read(off, 16), sz = be32(h, 0), ty = String.fromCharCode(h[4], h[5], h[6], h[7]);
+      if (sz === 1 || sz === 0) { if (sz === 0 && off + 8 <= size) sz = size - off; else return null; }
+      if (sz < 8 || off + sz > size) return null;
+      last = { off: off, size: sz, type: ty }; off += sz;
+    }
+    if (!last || last.type !== 'moov' || last.off + last.size !== size) return null;
+    var old = await read(last.off, last.size), bytes = new Uint8Array(old.length + udta.length);
+    bytes.set(old, 0); bytes.set(udta, old.length); bytes.set(u32(bytes.length), 0);
+    return { off: last.off, bytes: bytes };
+  };
+
   /* ---------- Вкладка «Данные» ---------- */
   function fmtDate(d) { return d.toLocaleString(document.documentElement.lang === 'en' ? 'en-GB' : 'ru-RU', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }); }
   function fmtRate(b) { return b >= 1e6 ? (b / 1e6).toFixed(1).replace('.', ',') + ' Мбит/с' : Math.round(b / 1000) + ' Кбит/с'; }
@@ -227,13 +303,15 @@
   /* Что получится в результате: то, чем управляет человек, и то, что не переносится */
   AV.metaAfter = function (m, st) {
     var r = [], pre = AV.codecName;
-    r.push([m.gps ? 'Место съёмки' : 'Координаты', m.gps ? 'удалено' : 'не записываются', m.gps ? 'good' : '']);
+    if (m.gps && st.mGps) r.push(['Место съёмки', 'записано в MP4', '']);
+    else r.push([m.gps ? 'Место съёмки' : 'Координаты', m.gps ? 'удалено' : 'не записываются', m.gps ? 'good' : '']);
     var dm = st.dateMode || 'src';
     if (dm === 'none') r.push(['Дата создания', 'не записывается', 'good']);
     else if (dm === 'now') r.push(['Дата создания', 'сегодняшняя', '']);
     else r.push(['Дата создания', m.created ? 'как в исходнике: ' + fmtDate(m.created) : 'в исходнике её нет, будет сегодняшняя', m.created ? '' : 'warn']);
     r.push(['Устройство и программа', 'не переносятся', '']);
-    r.push(['Название', m.title ? 'не переносится' : 'не записывается', '']);
+    if (st.mTitle && String(st.mTitle).trim()) r.push(['Название', 'записано в MP4: ' + String(st.mTitle).trim(), '']);
+    else r.push(['Название', m.title ? 'не переносится' : 'не записывается', '']);
     if (m.rot) r.push(['Поворот ' + m.rot + '°', 'применён к картинке', 'good']);
     r.push(['Звук', !m.a ? 'нет в исходнике' : st.mute ? 'убран' : (st.norm ? 'выровнен' : 'без изменений') + (st.denoise ? ', без шума' : ''), '']);
     return r;
@@ -247,7 +325,7 @@
     if (m.gps) {
       var w = el('div', 'info-warn'); w.setAttribute('role', 'note');
       w.append(svgIcon('shield'), el('div', '', ''));
-      w.lastChild.append(el('b', '', 'В исходнике есть координаты съёмки'), el('span', '', m.gps.text + ' ' + 'В готовое видео они не попадут: файл создаётся заново без них. Если отправляете исходник, помните об этом.'));
+      w.lastChild.append(el('b', '', 'В исходнике есть координаты съёмки'), el('span', '', m.gps.text + ' ' + (S.mGps ? 'Они будут записаны в готовый MP4. Если отправляете файл другим людям, помните об этом.' : 'В готовое видео они не попадут: файл создаётся заново без них. Если отправляете исходник, помните об этом.')));
       frag.appendChild(w);
     }
     var dl = el('dl', 'info-list');

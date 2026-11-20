@@ -135,8 +135,14 @@
         });
         return {
           target: target, stream: true, fastStart: false, name: name,
-          finish: async function (secs) {
+          finish: async function (secs, udta) {
             await chain; await w.close();
+            if (udta && fmt === 'mp4') {                       // название и координаты
+              try {
+                var f1 = await fh.getFile(), tl = await AV.udtaTail(async function (o, l) { return new Uint8Array(await f1.slice(o, o + l).arrayBuffer()); }, f1.size, udta);
+                if (tl) { var w3 = await fh.createWritable({ keepExistingData: true }); await w3.write({ type: 'write', position: tl.off, data: tl.bytes }); await w3.close(); }
+              } catch (e6) { /* файл остаётся без названия */ }
+            }
             if (secs !== undefined && fmt === 'mp4') {          // дата создания в готовом файле
               try {
                 var f0 = await fh.getFile(), w2 = await fh.createWritable({ keepExistingData: true });
@@ -161,11 +167,13 @@
     var t = new M.ArrayBufferTarget();
     return {
       target: t, stream: false, fastStart: 'in-memory',
-      finish: async function (secs) {
+      finish: async function (secs, udta) {
+        var mem = null;
+        if (udta && fmt === 'mp4') { try { mem = AV.addUdta(new Uint8Array(t.buffer), udta); } catch (e7) { mem = null; } }
         if (secs !== undefined && fmt === 'mp4') {
-          try { var u = new Uint8Array(t.buffer); await AV.stampMp4(async function (o, l) { return u.subarray(o, o + l); }, async function (o, b) { u.set(b, o); }, u.length, secs); } catch (e5) { /* дата останется сегодняшней */ }
+          try { var u = mem || new Uint8Array(t.buffer); await AV.stampMp4(async function (o, l) { return u.subarray(o, o + l); }, async function (o, b) { u.set(b, o); }, u.length, secs); } catch (e5) { /* дата останется сегодняшней */ }
         }
-        return new Blob([t.buffer], { type: mime });
+        return new Blob([mem ? mem : t.buffer], { type: mime });
       },
       abort: async function () { /* память освободит сборщик мусора */ }
     };
@@ -329,7 +337,8 @@
       o.onProgress(0.99, out.stream ? 'Дописываю файл на диск…' : 'Собираю файл…');
       muxer.finalize();
       var stampSecs = o.dateMode === 'none' ? 0 : (o.dateMode !== 'now' && o.srcDate ? Math.floor(o.srcDate / 1000) : undefined);
-      var blob = await out.finish(stampSecs);
+      var udta = fmt === 'mp4' ? AV.metaUdta(o.metaTitle, o.metaGps) : null;
+      var blob = await out.finish(stampSecs, udta);
       ok = true;
       closeSrcs();
       if (o.smooth && speed < 1 && !ipUsed) warnings.push('Плавное замедление не сработало: нужен MP4 или MOV, который читается быстрым способом. Видео сохранено обычным замедлением.');

@@ -153,12 +153,20 @@
   $('#ch').addEventListener('input', onCustom);
 
   /* ---------- вкладки ---------- */
+  /* активная вкладка всегда по центру полосы (на узком экране видно соседей и ясно, что есть что листать) */
+  function centerTab(b) {
+    var bar = b.parentNode;
+    if (!bar || bar.scrollWidth <= bar.clientWidth) return;
+    var to = b.offsetLeft - (bar.clientWidth - b.offsetWidth) / 2;
+    try { bar.scrollTo({ left: to, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); } catch (e) { bar.scrollLeft = to; }
+  }
   function setTab(name) {
     window.AVTab = name;
     $$('#settingsTabs [data-tab]').forEach(function (b) {
       var on = b.dataset.tab === name;
       b.setAttribute('aria-selected', on ? 'true' : 'false');
       b.tabIndex = on ? 0 : -1;
+      if (on) centerTab(b);
     });
     $$('#colSettings .card[data-tab]').forEach(function (c) { c.hidden = c.dataset.tab !== name; });
     ls.set(TAB_KEY, name);
@@ -763,7 +771,7 @@
     });
     var common = {
       format: fmt, segs: segs, W: o.w, H: o.h, fps: fps, bitrate: bitrateFor(o, fps, dur, !!clip), speed: S.speed,
-      mute: clip ? true : S.mute, vol: S.vol / 100, norm: S.norm, denoise: !clip && S.denoise, dateMode: S.dateMode, srcDate: group[0] && group[0].meta && group[0].meta.created ? +group[0].meta.created : 0, smooth: !clip && S.smooth, fadeIn: clip ? 0 : S.fadeIn, fadeOut: clip ? 0 : S.fadeOut,
+      mute: clip ? true : S.mute, vol: S.vol / 100, norm: S.norm, denoise: !clip && S.denoise, dateMode: S.dateMode, metaTitle: S.mTitle, metaGps: S.mGps && group[0] && group[0].meta && group[0].meta.gps ? { lat: group[0].meta.gps.lat, lon: group[0].meta.gps.lon } : null, srcDate: group[0] && group[0].meta && group[0].meta.created ? +group[0].meta.created : 0, smooth: !clip && S.smooth, fadeIn: clip ? 0 : S.fadeIn, fadeOut: clip ? 0 : S.fadeOut,
       tOff: clip ? (clip.start - group[0].start) / S.speed : 0,
       /* для записи в реальном времени (только один цельный отрезок) */
       video: video, file: group[0].file, start: segs[0].start, end: segs[0].end, r: segs[0].r,

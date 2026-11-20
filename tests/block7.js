@@ -47,6 +47,32 @@ const srv = http.createServer((q, r) => {
     await pg.evaluate(() => { set('dateMode', 'none'); });
     await save(); const f2 = await dump('date-none.mp4');
     const c2 = created(f2); ok(!/^20(2[5-9]|[3-9])/.test(c2) || c2 === '', 'без даты: «' + c2 + '»');
+    // 4. название и координаты: moov в конце и moov в начале
+    for (const nm of ['plain_end.mp4', 'plain_fs.mp4']) {
+      const r = await pg.evaluate(async (nm) => {
+        const u = new Uint8Array(await (await fetch('tests/fixtures/' + nm)).arrayBuffer());
+        const ud = AV.metaUdta('Мой ролик', { lat: 55.7558, lon: 37.6173 });
+        const out = AV.addUdta(u, ud); return out ? Array.from(out) : null;
+      }, nm);
+      ok(!!r, nm + ': udta добавлен');
+      if (r) {
+        const f = path.join(outDir, 'udta-' + nm); fs.writeFileSync(f, Buffer.from(r));
+        const pr = cp.spawnSync('ffprobe', ['-v', 'error', '-show_entries', 'format_tags', '-of', 'default=nw=1', f], { encoding: 'utf8' }).stdout;
+        ok(/Мой ролик/.test(pr) && /55\.7558/.test(pr), nm + ': ffprobe видит название и координаты');
+        const dec = cp.spawnSync('ffmpeg', ['-v', 'error', '-i', f, '-f', 'null', '-'], { encoding: 'utf8' });
+        ok(!dec.stderr.trim(), nm + ': файл по-прежнему декодируется ' + dec.stderr.trim().slice(0, 100));
+      }
+    }
+    // 5. через интерфейс: название и координаты попадают в результат
+    await open('meta.mp4'); await tab('info');
+    await pg.fill('#mTitle', 'Из интерфейса'); await pg.click('#writeCard label.switch'); ok(await pg.$eval('#mGps', e => e.checked), 'переключатель координат включился');
+    await save(); const f3 = await dump('title-gps.mp4');
+    const pr3 = cp.spawnSync('ffprobe', ['-v', 'error', '-show_entries', 'format_tags', '-of', 'default=nw=1', f3], { encoding: 'utf8' }).stdout;
+    ok(/Из интерфейса/.test(pr3) && /55\.7558/.test(pr3), 'в результате есть название и координаты: ' + pr3.replace(/\n/g, ' ').slice(0, 120));
+    await pg.click('#writeCard label.switch'); await pg.fill('#mTitle', '');
+    await save(); const f4 = await dump('no-title.mp4');
+    const pr4 = cp.spawnSync('ffprobe', ['-v', 'error', '-show_entries', 'format_tags', '-of', 'default=nw=1', f4], { encoding: 'utf8' }).stdout;
+    ok(!/55\.7558/.test(pr4) && !/Из интерфейса/.test(pr4), 'по умолчанию координат и названия в результате нет');
     // 3. отчёт
     await tab('info');
     const rep = await pg.evaluate(() => AV.metaText(AVApp.Q()[0].meta).length);

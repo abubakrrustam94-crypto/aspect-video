@@ -748,4 +748,13 @@ window.I18N_EN = {
   "Данные": "Data",
   "Добавьте видео.": "Add a video.",
   "Проверено: ": "Verified: ",
+  "Записать в файл": "Write into the file",
+  "Название видео": "Video title",
+  "Можно оставить пустым": "Can be left empty",
+  "Сохранить координаты съёмки": "Keep shooting coordinates",
+  "По умолчанию координаты не переносятся. Включите, если место нужно оставить в файле.": "Coordinates are not carried over by default. Turn on to keep the location in the file.",
+  "Название и координаты записываются в MP4. В WebM их нет.": "The title and coordinates are written into MP4. WebM has neither.",
+  "Они будут записаны в готовый MP4. Если отправляете файл другим людям, помните об этом.": "They will be written into the finished MP4. Keep this in mind if you share the file.",
+  "записано в MP4": "written into MP4",
+  "записано в MP4: ": "written into MP4: ",
 };

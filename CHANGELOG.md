@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.9.0 — Название и координаты в файле
+- `AV.metaUdta`, `AV.addUdta`, `AV.udtaTail`: запись `©nam` и `©xyz` в блок udta внутри moov (в памяти со сдвигом stco/co64, на диске — когда moov последний).
+- Настройки `mTitle`, `mGps` (по умолчанию выключено), карточка «Записать в файл».
+- Вкладки: активная по центру (`centerTab`), маска по краям на узких экранах.
+
 ## 2.8.0 — Вкладка «Данные»
 - `js/meta.js`: чтение метаданных (MP4/MOV: mp4box + разбор moov — ©xyz, loci, iTunes `data`, mdta keys/ilst; WebM: EBML), `AV.readMeta`, `AV.metaRows`, `AV.metaAfter`, `AV.renderInfo`, `AV.metaText`, `AV.stampMp4`.
 - Настройка `dateMode` (`src`/`now`/`none`): дата создания пишется в `mvhd/tkhd/mdhd` MP4 после финализации; WebM остаётся с датой сохранения.

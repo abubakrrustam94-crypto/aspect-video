@@ -5,7 +5,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; connect-src 'self' blob: data:; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, viewport-fit=cover">
-<meta name="av-version" content="2.8.0">
+<meta name="av-version" content="2.9.0">
 <meta name="theme-color" content="#0f0f14">
 <meta name="description" content="Меняет формат видео без обрезки: Reels, Shorts, пост 4:5, YouTube. Всё работает в браузере, видео никуда не загружается.">
 <title>Aspect Studio Video</title>
@@ -515,6 +515,14 @@
           <button type="button" data-val="none">Без даты</button>
         </div>
         <p class="note">По этой дате галерея телефона сортирует видео. Записывается в MP4. В WebM даты нет: там остаётся время сохранения.</p>
+      </section>
+      <section class="card" data-tab="info" id="writeCard">
+        <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-save"/></svg> Записать в файл</div>
+        <label class="field-label" for="mTitle">Название видео</label>
+        <input class="text-input" id="mTitle" type="text" data-key="mTitle" maxlength="120" autocomplete="off" spellcheck="false" placeholder="Можно оставить пустым">
+        <label class="switch" style="margin-top:12px"><input type="checkbox" data-key="mGps" id="mGps"><span class="track"></span><span>Сохранить координаты съёмки</span></label>
+        <p class="note" id="mGpsNote">По умолчанию координаты не переносятся. Включите, если место нужно оставить в файле.</p>
+        <p class="note">Название и координаты записываются в MP4. В WebM их нет.</p>
       </section>
       <section class="card" data-tab="components" id="compCard">
         <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-box"/></svg> Компоненты <span class="comp-sum" id="compSum"></span></div>
