@@ -56,6 +56,7 @@
   /* ---------- привязка настроек к элементам ---------- */
   function syncUI() {
     if (window.AV && AV.renderInfo && window.AVTab === 'info') AV.renderInfo(item());
+    var tm = $('#targetMb'); if (tm && document.activeElement !== tm) tm.value = [0, 10, 25, 50, 100].indexOf(S.target) >= 0 ? '' : S.target;
     $$('[data-key]').forEach(function (e) {
       var k = e.dataset.key;
       if (e.type === 'checkbox') e.checked = !!S[k];
@@ -161,6 +162,7 @@
     try { bar.scrollTo({ left: to, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); } catch (e) { bar.scrollLeft = to; }
   }
   function setTab(name) {
+    if (name === 'video') setTimeout(tlStrip, 30);
     window.AVTab = name;
     $$('#settingsTabs [data-tab]').forEach(function (b) {
       var on = b.dataset.tab === name;
@@ -334,6 +336,7 @@
     [$('#start'), $('#end'), $('#seek')].forEach(function (r) { r.max = it.dur; });
     $('#start').value = it.start; $('#end').value = it.end;
     $('#startLbl').textContent = fmtTime(it.start); $('#endLbl').textContent = fmtTime(it.end);
+    tlPaint(it);
   }
 
   /* ---------- превью ---------- */
@@ -418,9 +421,49 @@
       }
     } catch (e) { /* миниатюры не обязательны */ }
     v.removeAttribute('src'); v.load();
+    if (token === stripToken) tlStrip();
   }
 
   /* ---------- фрагмент ---------- */
+  /* ---------- полоса обрезки: два края и бегунок ---------- */
+  function tlPaint(it) {
+    var tl = $('#tl'); if (!tl) return;
+    it = it || item(); if (!it || !(it.dur > 0)) return;
+    var a = it.start / it.dur * 100, b = it.end / it.dur * 100, t = Math.min(1, Math.max(0, (video.currentTime || 0) / it.dur)) * 100;
+    tl.querySelector('.tl-l').style.width = a + '%'; tl.querySelector('.tl-r').style.width = (100 - b) + '%';
+    tl.querySelector('.tl-s').style.left = a + '%'; tl.querySelector('.tl-e').style.left = b + '%';
+    tl.querySelector('.tl-head').style.left = t + '%';
+  }
+  function tlStrip() {                                 // картинка полосы берётся из ленты кадров под превью
+    var src = $('#strip'), dst = $('#tlStrip'); if (!src || !dst) return;
+    var w = Math.max(240, Math.round(dst.clientWidth || 320)); dst.width = w; dst.height = 44;
+    try { dst.getContext('2d').drawImage(src, 0, 0, src.width, src.height, 0, 0, w, 44); } catch (e) { /* ничего */ }
+  }
+  (function () {
+    var tl = $('#tl'), drag = null;
+    function tOf(ev) { var r = tl.getBoundingClientRect(), it = item(); return it ? Math.min(it.dur, Math.max(0, (ev.clientX - r.left) / r.width * it.dur)) : 0; }
+    tl.addEventListener('pointerdown', function (ev) {
+      var it = item(); if (!it || busy) return;
+      var r = tl.getBoundingClientRect(), x = ev.clientX - r.left, xs = it.start / it.dur * r.width, xe = it.end / it.dur * r.width;
+      var ds = Math.abs(x - xs), de = Math.abs(x - xe);
+      drag = ds <= 22 || de <= 22 ? (ds <= de ? 'start' : 'end') : 'seek';
+      try { tl.setPointerCapture(ev.pointerId); } catch (e) { /* ничего */ }
+      move(ev); ev.preventDefault();
+    });
+    function move(ev) {
+      var it = item(); if (!it || !drag) return;
+      var t = tOf(ev);
+      if (drag === 'seek') { video.currentTime = Math.min(it.end, Math.max(it.start, t)); tlPaint(it); return; }
+      var inp = drag === 'start' ? $('#start') : $('#end');
+      inp.value = t; inp.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    tl.addEventListener('pointermove', move);
+    function stop() { drag = null; }
+    tl.addEventListener('pointerup', stop); tl.addEventListener('pointercancel', stop);
+    video.addEventListener('timeupdate', function () { tlPaint(); });
+    window.addEventListener('resize', tlStrip);
+  })();
+
   $('#start').addEventListener('input', function () {
     var it = item(); if (!it) return;
     it.cuts = null; it.start = Math.max(0, Math.min(parseFloat($('#start').value), it.end - 0.2));
@@ -695,6 +738,13 @@
     else if (!AV.hasOpfs() && est > DEV_MEM * 90 * 1048576) warn = 'Файл получится большим, а запись на диск в этом браузере недоступна: он собирается в памяти. На слабом телефоне может не хватить памяти. Уменьшите размер, битрейт или длину.';
     else if (est > 1.5 * 1073741824) warn = 'Файл получится больше 1,5 ГБ. Для соцсетей лучше уменьшить размер или выбрать «Компактный» битрейт.';
     w.hidden = !warn; w.textContent = warn;
+    var fn = $('#fitNote');
+    if (fn) {
+      if (S.target && S.format !== 'gif') {
+        var bpp = bitrateFor(o, fps, dur) / (o.w * o.h * fps), q = bpp >= 0.07 ? 'хорошее' : bpp >= 0.045 ? 'среднее' : bpp >= 0.03 ? 'низкое' : 'плохое';
+        fn.textContent = 'Уложится в ' + S.target + ' МБ. Качество при таком лимите: ' + q + '.';
+      } else fn.textContent = '';
+    }
   }
 
   /* ---------- экспорт ---------- */
@@ -861,6 +911,12 @@
       document.dispatchEvent(new CustomEvent('avsaved'));
     }
   }
+  $('#targetMb').addEventListener('input', function () {
+    var v = parseFloat(this.value.replace(',', '.'));
+    if (busy) return;
+    if (this.value === '') { set('target', 0); return; }
+    if (v >= 1 && v <= 5000) set('target', Math.round(v * 10) / 10);
+  });
   $('#saveBtn').addEventListener('click', function () { runQueue(false); });
   $('#saveAllBtn').addEventListener('click', function () { runQueue(true); });
 
@@ -905,8 +961,9 @@
   $('#clipBtn').addEventListener('click', runClip);
 
   /* ---------- результаты ---------- */
+  function zipBtn() { var b = $('#zipAll'); b.hidden = results.length < 2; }
   function addResult(r) {
-    results.unshift(r);
+    results.unshift(r); zipBtn();
     var list = $('#resultList'); list.replaceChildren();
     results.forEach(function (x, i) {
       var card = el('article', 'res-card' + (i === 0 ? ' fresh' : '')), isGif = x.ext === 'gif';
@@ -960,10 +1017,22 @@
     $('#resultCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
+  $('#zipAll').addEventListener('click', async function () {
+    var b = this; if (b.disabled || results.length < 2) return;
+    var old = b.textContent; b.disabled = true;
+    try {
+      var z = await AV.makeZip(results.slice().reverse().map(function (r) { return { name: r.name, blob: r.blob }; }), function (f) { b.textContent = 'Архив ' + Math.round(f * 100) + '%'; });
+      var url = URL.createObjectURL(z), d = new Date(), pad = function (n) { return String(n).padStart(2, '0'); };
+      download(url, 'aspect-video_' + d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + '.zip');
+      setTimeout(function () { URL.revokeObjectURL(url); }, 120000);
+      toast('Архив готов: ' + results.length + ' видео');
+    } catch (e) { logError(e, 'архив'); toast((e && e.message) || 'Не удалось собрать архив', true); }
+    b.disabled = false; b.textContent = old;
+  });
   $('#clearResults').addEventListener('click', function () {
     $$('#resultList video').forEach(function (v) { v.pause(); v.removeAttribute('src'); v.load(); });
     results.forEach(function (r) { URL.revokeObjectURL(r.url); });
-    results.length = 0; $('#resultList').replaceChildren();
+    results.length = 0; $('#resultList').replaceChildren(); zipBtn();
     $('#resultCard').hidden = true;
     AV.cleanOpfs();                        // файлы на диске нужны, пока результаты в списке
     toast('Список очищен, место освобождено');

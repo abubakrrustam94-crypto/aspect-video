@@ -5,7 +5,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; connect-src 'self' blob: data:; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, viewport-fit=cover">
-<meta name="av-version" content="2.9.0">
+<meta name="av-version" content="2.10.0">
 <meta name="theme-color" content="#0f0f14">
 <meta name="description" content="Меняет формат видео без обрезки: Reels, Shorts, пост 4:5, YouTube. Всё работает в браузере, видео никуда не загружается.">
 <title>Aspect Studio Video</title>
@@ -139,7 +139,7 @@
       </section>
 
       <section class="card" id="resultCard" hidden>
-        <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-save"/></svg> Готовые видео <button type="button" class="btn btn-outlined btn-sm" id="clearResults" style="margin-left:auto">Очистить список</button></div>
+        <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-save"/></svg> Готовые видео <button type="button" class="btn btn-tonal btn-sm" id="zipAll" style="margin-left:auto" hidden>Скачать архивом</button> <button type="button" class="btn btn-outlined btn-sm" id="clearResults">Очистить список</button></div>
         <div class="results" id="resultList"></div>
         <p class="note" id="resultNote" hidden></p>
       </section>
@@ -224,6 +224,12 @@
       <!-- ===== Видео ===== -->
       <section class="card" data-tab="video">
         <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-video"/></svg> Фрагмент</div>
+        <div class="tl" id="tl" aria-hidden="true">
+          <canvas id="tlStrip" height="44"></canvas>
+          <div class="tl-dim tl-l"></div><div class="tl-dim tl-r"></div>
+          <div class="tl-h tl-s"></div><div class="tl-h tl-e"></div><div class="tl-head"></div>
+        </div>
+        <p class="note">Тяните края полосы, чтобы обрезать. Нажмите внутри, чтобы перемотать. Точнее можно ползунками ниже.</p>
         <div class="stack">
           <div>
             <span class="field-label">Начало <output id="startLbl" class="mono">0:00.0</output></span>
@@ -454,6 +460,9 @@
               <button type="button" data-val="50">50 МБ</button>
               <button type="button" data-val="100">100 МБ</button>
             </div>
+            <label class="field-label" for="targetMb" style="margin-top:10px">Свой лимит, МБ</label>
+            <input class="text-input" id="targetMb" type="number" inputmode="decimal" min="1" max="5000" step="1" placeholder="Например, 8" autocomplete="off">
+            <p class="note" id="fitNote" aria-live="polite"></p>
             <p class="note" style="margin-top:8px">Битрейт подбирается под длину видео, чтобы файл влез в лимит (для почты, мессенджеров). Выбранный выше битрейт тогда не используется. Если лимит мал для такой длины, качество будет низким.</p>
           </div>
         </div>
@@ -682,6 +691,7 @@
 <script src="js/denoise.js"></script>
 <script src="js/interp.js"></script>
 <script src="js/meta.js"></script>
+<script src="js/zip.js"></script>
 <script src="js/subsai.js"></script>
 <script src="js/local.js"></script>
 <script src="js/export.js"></script>

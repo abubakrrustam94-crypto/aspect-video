@@ -187,7 +187,7 @@ const srv = http.createServer((q, r) => {
 
     /* О программе */
     await pg.click('#settingsTabs [data-tab="about"]');
-    ok((await pg.textContent('#appVersion')) === "v2.9.0", 'версия показана');
+    ok((await pg.textContent('#appVersion')) === "v2.10.0", 'версия показана');
     await pg.click('#wnOpenBtn');
     await pg.waitForSelector('#wnList .wn-rel', { timeout: 5000 });
     ok((await pg.locator('#wnList .wn-rel').count()) >= 2, 'что нового: записей ' + (await pg.locator('#wnList .wn-rel').count()));

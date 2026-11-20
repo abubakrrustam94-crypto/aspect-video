@@ -514,3 +514,14 @@ details.wn-rel .wn-ver { background: var(--md-sys-color-surface-container-highes
 .info-after li.warn b { color: var(--md-sys-color-error); }
 .res-check { font-size: .78rem; opacity: .85; }
 .res-check.bad { color: var(--md-sys-color-error); opacity: 1; font-weight: 700; }
+
+/* ---------- Полоса обрезки ---------- */
+.tl { position: relative; height: 52px; margin: 4px 0 8px; border-radius: 12px; overflow: hidden; background: #222; touch-action: none; user-select: none; -webkit-user-select: none; cursor: pointer; }
+.tl canvas { position: absolute; inset: 4px 0; width: 100%; height: 44px; display: block; }
+.tl-dim { position: absolute; top: 0; bottom: 0; background: rgba(0, 0, 0, .62); pointer-events: none; }
+.tl-l { left: 0; width: 0; } .tl-r { right: 0; width: 0; }
+.tl-h { position: absolute; top: 0; bottom: 0; width: 18px; margin-left: -9px; background: var(--md-sys-color-primary); cursor: ew-resize; }
+.tl-h::after { content: ''; position: absolute; left: 7px; top: 16px; bottom: 16px; width: 4px; border-radius: 2px; background: var(--md-sys-color-on-primary); }
+.tl-s { border-radius: 10px 0 0 10px; } .tl-e { border-radius: 0 10px 10px 0; }
+.tl-head { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, .5); pointer-events: none; }
+@media (prefers-reduced-motion: no-preference) { .tl-head { transition: left .06s linear; } }
