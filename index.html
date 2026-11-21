@@ -5,7 +5,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; connect-src 'self' blob: data:; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, viewport-fit=cover">
-<meta name="av-version" content="2.10.0">
+<meta name="av-version" content="2.11.0">
 <meta name="theme-color" content="#0f0f14">
 <meta name="description" content="Меняет формат видео без обрезки: Reels, Shorts, пост 4:5, YouTube. Всё работает в браузере, видео никуда не загружается.">
 <title>Aspect Studio Video</title>
@@ -215,6 +215,8 @@
             <button type="button" data-val="right">Правое</button>
             <button type="button" data-val="tap">По нажатию</button>
           </div>
+          <label class="switch" style="margin-top:12px"><input type="checkbox" data-key="trackObj"><span class="track"></span><span>Следить за заметным объектом, а не за лицом</span></label>
+          <p class="note">Для животных, машин и предметов. Берётся самое яркое и подвижное место кадра, поэтому на сложном фоне может ошибаться.</p>
           <p class="note" id="tapNote" hidden>Нажмите на нужного человека в превью, и камера пойдёт за ним.</p>
           <p class="note">Кадр «Обрезать» смещается за выбранным лицом, а не режет по центру. Поиск идёт на устройстве, при первом запуске подгружается модель (~1,7 МБ).</p>
         </div>
@@ -323,7 +325,24 @@
           <button type="button" class="btn btn-tonal btn-sm" id="silCut">Вырезать паузы</button>
           <button type="button" class="btn btn-outlined btn-sm" id="silReset">Вернуть</button>
         </div>
+        <label class="switch" style="margin-top:12px"><input type="checkbox" data-key="silSpeech"><span class="track"></span><span>Только речь (точнее)</span></label>
+        <p class="note">С этим режимом шум и музыка считаются паузой, остаётся только голос. Для роликов с музыкой выключите.</p>
         <p class="note" id="silStatus">Ищет места, где нет звука, и убирает их. Паузы короче 0,7 с остаются.</p>
+      </section>
+
+      <!-- ===== Сцены ===== -->
+      <section class="card" data-tab="video" id="scCard">
+        <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-video"/></svg> Сцены</div>
+        <div class="row" style="margin:0">
+          <button type="button" class="btn btn-tonal btn-sm" id="scRun">Найти сцены</button>
+          <span class="note" id="scStatus" style="margin:0">Находит места, где кадр резко меняется.</span>
+        </div>
+        <div class="sc-list" id="scList" role="list"></div>
+        <div class="row" id="scActs" style="margin-top:12px" hidden>
+          <button type="button" class="btn btn-tonal btn-sm" id="scKeep">Оставить отмеченные</button>
+          <button type="button" class="btn btn-tonal btn-sm" id="scSplit">Разрезать на видео</button>
+        </div>
+        <p class="note" id="scNote" hidden>«Оставить» склеивает отмеченные сцены в один ролик. «Разрезать» добавляет каждую сцену в очередь отдельным видео.</p>
       </section>
 
       <!-- ===== Водяной знак ===== -->
@@ -468,6 +487,14 @@
         </div>
         <p class="note" id="estNote"></p>
         <p class="note warn" id="memWarn" hidden></p>
+      </section>
+      <section class="card" data-tab="export" id="benchCard">
+        <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-activity"/></svg> Скорость устройства</div>
+        <div class="row" style="margin:0">
+          <button type="button" class="btn btn-tonal btn-sm" id="benchRun">Проверить</button>
+          <span class="note" id="benchStatus" style="margin:0">Занимает несколько секунд.</span>
+        </div>
+        <p class="note" id="benchHint" aria-live="polite"></p>
       </section>
       <section class="card" data-tab="export">
         <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-copy"/></svg> Имя файла</div>
@@ -692,6 +719,8 @@
 <script src="js/interp.js"></script>
 <script src="js/meta.js"></script>
 <script src="js/zip.js"></script>
+<script src="js/scenes.js"></script>
+<script src="js/bench.js"></script>
 <script src="js/subsai.js"></script>
 <script src="js/local.js"></script>
 <script src="js/export.js"></script>

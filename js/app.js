@@ -104,9 +104,9 @@
   }
   function afterSet(k) {
     if (k === '*') Q.forEach(function (it) { it.track = null; it.noFace = false; it.stab = null; });   // поворот у каждого видео свой и от наборов не меняется
-    if (k === 'faceMode') Q.forEach(function (it) { it.track = null; it.noFace = false; });
+    if (k === 'faceMode' || k === 'trackObj') Q.forEach(function (it) { it.track = null; it.noFace = false; });
     if (k === 'faceMode' && S.faceMode === 'tap' && S.faceTrack) toast('Нажмите на нужного человека в превью.');
-    if (k === 'faceMode' && S.mode === 'crop' && S.faceTrack && item() && S.faceMode !== 'tap') runFaces(item());
+    if ((k === 'faceMode' || k === 'trackObj') && S.mode === 'crop' && S.faceTrack && item() && (S.trackObj || S.faceMode !== 'tap')) runFaces(item());
     syncUI();
     if (k === 'speed' || k === '*') video.playbackRate = S.speed;
     if (k === 'mute' || k === '*') video.muted = S.mute;
@@ -328,7 +328,7 @@
     try { await loadVideo(it); } catch (e) { toast('Не удалось показать видео «' + it.name + '».', true); return; }
     syncTrim(it);
     try { video.currentTime = Math.min(it.start + 0.05, it.dur / 2); } catch (e2) { /* ничего */ }
-    syncUI(); updateInfo(); draw(); renderCaps(); updateStabStatus(); updateSilStatus(); AV.renderInfo(it);
+    syncUI(); updateInfo(); draw(); renderCaps(); updateStabStatus(); updateSilStatus(); renderScenes(); AV.renderInfo(it);
     makeStrip(it);
     if (S.mode === 'crop' && S.faceTrack && !it.track && !it.noFace) runFaces(it);
   }
@@ -522,7 +522,7 @@
     if (!s) return;
     b.disabled = facesRunning || !it || busy;
     if (facesRunning) return;
-    s.textContent = !it ? '' : it.track ? 'Лицо найдено: кадр будет следовать за ним.' : it.noFace ? 'Лиц не найдено. Кадр режется по центру.' : 'Ещё не искали.';
+    s.textContent = !it ? '' : it.track ? (S.trackObj ? 'Объект найден: кадр будет следовать за ним.' : 'Лицо найдено: кадр будет следовать за ним.') : it.noFace ? 'Лиц не найдено. Кадр режется по центру.' : 'Ещё не искали.';
   }
   async function runFaces(it, sig) {
     if (facesRunning || !it) return;
@@ -532,13 +532,13 @@
     var ac = new AbortController();
     try {
       await new Promise(function (res, rej) { fv.onloadeddata = res; fv.onerror = rej; setTimeout(function () { rej(new Error('timeout')); }, 15000); });
-      var track = await AV.trackFaces({
+      var track = await (S.trackObj ? AV.trackSalient : AV.trackFaces)({
         start: 0, end: it.dur, step: Math.max(0.5, it.dur / 120), signal: sig || ac.signal, mode: S.faceMode, tap: it.tap,
         grab: async function (t) { await AV.seekTo(fv, t); var o = AV.getOriented(fv, it.rot, it.fh, it.fv); return o; },
-        onProgress: function (f) { s.textContent = 'Ищу лицо: ' + Math.round(f * 100) + '%'; }
+        onProgress: function (f) { s.textContent = (S.trackObj ? 'Ищу объект: ' : 'Ищу лицо: ') + Math.round(f * 100) + '%'; }
       });
       it.track = track; it.noFace = !track;
-      if (!track) toast('Лиц не найдено. Кадр режется по центру.');
+      if (!track) toast(S.trackObj ? 'Заметного объекта не нашлось. Кадр режется по центру.' : 'Лиц не найдено. Кадр режется по центру.');
     } catch (e) {
       if (e && e.aborted) return;                       // отмена экспорта: молча выходим, ошибку не показываем
       logError(e, 'лица');
@@ -660,6 +660,85 @@
   $('#stabRun').addEventListener('click', function () { var it = item(); if (it) { it.stab = null; runStab(it); } });
   onSet(function (k) { if (k === 'stab' || k === '*') updateStabStatus(); });
 
+  /* ---------- скорость устройства ---------- */
+  function benchHint() {
+    var h = $('#benchHint'), st = $('#benchStatus'), b = AV.benchLoad(); if (!h) return;
+    if (!b) { h.textContent = ''; return; }
+    var d = new Date(b.at), pad = function (n) { return String(n).padStart(2, '0'); };
+    st.textContent = 'Замер от ' + pad(d.getDate()) + '.' + pad(d.getMonth() + 1) + ': около ' + Math.round(b.fps) + ' кадров/с в 720p.';
+    var it = item(); if (!it) { h.textContent = ''; return; }
+    var o = outSize(it), grp = S.concat && Q.length > 1 ? Q : [it], dur = groupDur(grp), fps = outFps(dur), e = AV.benchEstimate(b, o.w, o.h, fps, dur), msg = 'Ваше видео (' + o.w + '×' + o.h + ', ' + fps + ' кадров/с, ' + fmtTime(dur) + ') сохранится примерно за ' + fmtTime(e.seconds) + '.';
+    var tips = [];
+    if (e.seconds > Math.max(120, dur * 3)) tips.push('Чтобы быстрее: выберите 720p или 30 кадров/с');
+    if (b.fps < 25 && (S.denoise || S.smooth)) tips.push('шумоподавление и плавное замедление на этом устройстве заметно добавят времени');
+    h.textContent = msg + (tips.length ? ' ' + tips.join('; ') + '.' : '');
+  }
+  $('#benchRun').addEventListener('click', async function () {
+    var b = this, st = $('#benchStatus'); if (b.disabled || busy) return;
+    b.disabled = true; st.textContent = 'Проверяю…';
+    try { await AV.benchRun(function (f) { st.textContent = 'Проверяю: ' + Math.round(f * 100) + '%'; }); benchHint(); toast('Замер готов'); }
+    catch (e) { logError(e, 'замер'); st.textContent = (e && e.message) || 'Замер не получился.'; toast(st.textContent, true); }
+    b.disabled = false;
+  });
+
+  /* ---------- сцены ---------- */
+  var scAbort = null;
+  function renderScenes() {
+    var it = item(), list = $('#scList'); if (!list) return;
+    list.replaceChildren();
+    var has = !!(it && it.scenes && it.scenes.length);
+    $('#scActs').hidden = !has || it.scenes.length < 2; $('#scNote').hidden = $('#scActs').hidden;
+    if (!has) { if (it && it.scenes) $('#scStatus').textContent = 'Сцены не найдены: ролик снят одним планом.'; return; }
+    $('#scStatus').textContent = 'Найдено сцен: ' + it.scenes.length + '.';
+    it.scenes.forEach(function (sc, i) {
+      var row = el('div', 'sc-row'); row.setAttribute('role', 'listitem');
+      var cb = el('input'); cb.type = 'checkbox'; cb.id = 'sc' + i; cb.checked = sc.keep !== false;
+      cb.addEventListener('change', function () { sc.keep = cb.checked; });
+      var lb = el('label'); lb.htmlFor = cb.id; lb.append(document.createTextNode('Сцена ' + (i + 1) + ' '), el('span', 'mono', fmtTime(sc.start) + ' – ' + fmtTime(sc.end)));
+      var go = el('button', 'btn btn-outlined btn-sm'); go.type = 'button'; go.setAttribute('aria-label', 'Показать сцену ' + (i + 1)); go.appendChild(svgIcon('play'));
+      go.addEventListener('click', function () { video.currentTime = sc.start; draw(); tlPaint(); });
+      row.append(cb, lb, go); list.appendChild(row);
+    });
+  }
+  $('#scRun').addEventListener('click', async function () {
+    var it = item(), b = this; if (!it || busy) return;
+    if (scAbort) { scAbort.abort(); return; }
+    scAbort = new AbortController(); b.textContent = 'Отмена';
+    var st = $('#scStatus'), fv = document.createElement('video'); fv.muted = true; fv.preload = 'auto'; fv.playsInline = true; fv.src = it.url;
+    try {
+      await new Promise(function (res, rej) { fv.onloadeddata = res; fv.onerror = rej; setTimeout(function () { rej(new Error('timeout')); }, 15000); });
+      var sc = await AV.findScenes({ video: fv, start: it.start, end: it.end, signal: scAbort.signal, onProgress: function (f) { st.textContent = 'Ищу сцены: ' + Math.round(f * 100) + '%'; } });
+      it.scenes = sc.length > 1 ? sc : [];
+      if (!sc.length || sc.length < 2) it.scenes = [];
+      renderScenes();
+      if (!it.scenes.length) toast('Резких смен кадра не нашлось.');
+    } catch (e) {
+      if (!(e && e.aborted)) { logError(e, 'сцены'); toast('Не получилось найти сцены: ' + ((e && e.message) || e), true); }
+      st.textContent = 'Поиск остановлен.';
+    } finally { fv.removeAttribute('src'); fv.load(); scAbort = null; b.textContent = 'Найти сцены'; }
+  });
+  $('#scKeep').addEventListener('click', function () {
+    var it = item(); if (!it || busy || !it.scenes) return;
+    var iv = [];
+    it.scenes.forEach(function (sc) { if (sc.keep === false) return; var l = iv[iv.length - 1]; if (l && Math.abs(sc.start - l[1]) < 0.001) l[1] = sc.end; else iv.push([sc.start, sc.end]); });
+    if (!iv.length) { toast('Отметьте хотя бы одну сцену.', true); return; }
+    it.start = iv[0][0]; it.end = iv[iv.length - 1][1]; it.cuts = iv.length > 1 ? iv : null;
+    syncTrim(it); video.currentTime = it.start; updateInfo(); updateEstimate(); draw();
+    if (it.cuts) updateSilStatus();
+    toast(iv.length > 1 ? 'Оставлено кусков: ' + iv.length : 'Оставлена одна сцена');
+  });
+  $('#scSplit').addEventListener('click', function () {
+    var it = item(); if (!it || busy || !it.scenes) return;
+    var m = /^(.*?)(\.[^.]*)?$/.exec(it.name), at = cur + 1, n = 0;
+    it.scenes.forEach(function (sc, i) {
+      if (sc.keep === false) return;
+      var c = Object.assign({}, it, { id: ++uid, url: URL.createObjectURL(it.file), name: m[1] + '_сцена' + (i + 1) + (m[2] || ''), start: sc.start, end: sc.end, cuts: null, scenes: null, caps: it.caps ? it.caps.slice() : [] });
+      Q.splice(at++, 0, c); n++;
+    });
+    if (!n) { toast('Отметьте хотя бы одну сцену.', true); return; }
+    renderQueue(); updateEstimate(); toast('В очередь добавлено видео: ' + n);
+  });
+
   /* ---------- тишина ---------- */
   function updateSilStatus() {
     var it = item(), s = $('#silStatus'); if (!s) return;
@@ -675,8 +754,12 @@
     var btns = $$('#silCard button'); btns.forEach(function (b) { b.disabled = true; });
     s.textContent = 'Анализирую звук…';
     soundOf(it).then(function (an) {
-      var iv = AV.soundIntervals(an, 0.7, 0.12).map(function (x) { return [Math.max(it.start, x[0]), Math.min(it.end, x[1])]; })
-        .filter(function (x) { return x[1] - x[0] >= 0.2; });
+      var clip = function (a) { return a.map(function (x) { return [Math.max(it.start, x[0]), Math.min(it.end, x[1])]; }).filter(function (x) { return x[1] - x[0] >= 0.2; }); };
+      var iv = clip((S.silSpeech ? AV.speechIntervals : AV.soundIntervals)(an, 0.7, 0.12));
+      if (!iv.length && S.silSpeech) {                  // речи нет (музыка, шум): ищем по громкости, как раньше
+        iv = clip(AV.soundIntervals(an, 0.7, 0.12));
+        if (iv.length) toast('Речи не нашлось, паузы ищу по громкости.');
+      }
       if (!iv.length) { s.textContent = 'В выбранном фрагменте не нашлось звука.'; toast('Звук не найден: нечего оставлять.', true); return; }
       var before = srcDur(it);
       it.start = iv[0][0]; it.end = iv[iv.length - 1][1];
@@ -738,6 +821,7 @@
     else if (!AV.hasOpfs() && est > DEV_MEM * 90 * 1048576) warn = 'Файл получится большим, а запись на диск в этом браузере недоступна: он собирается в памяти. На слабом телефоне может не хватить памяти. Уменьшите размер, битрейт или длину.';
     else if (est > 1.5 * 1073741824) warn = 'Файл получится больше 1,5 ГБ. Для соцсетей лучше уменьшить размер или выбрать «Компактный» битрейт.';
     w.hidden = !warn; w.textContent = warn;
+    benchHint();
     var fn = $('#fitNote');
     if (fn) {
       if (S.target && S.format !== 'gif') {
