@@ -1,5 +1,5 @@
 /* Aspect Studio Video — service worker (офлайн-режим) */
-const VERSION = 'aspect-video-v2.12.0';
+const VERSION = 'aspect-video-v2.13.0';
 const CORE = ['./', './index.html', './manifest.webmanifest', './css/base.css', './css/style.css',
   './js/core.js', './js/render.js', './js/faces.js', './js/denoise.js', './js/interp.js', './js/meta.js', './js/zip.js', './js/scenes.js', './js/bench.js', './js/subsai.js', './js/whisper-worker.js', './js/analyze.js', './js/decode.js', './js/audio.js', './js/session.js', './js/project.js', './js/local.js', './js/export.js', './js/app.js', './js/extras.js', './js/about.js', './js/changelog-data.js', './js/heal.js', './js/faces-worker.js', './js/i18n-en.js', './js/i18n.js',
   './vendor/mp4-muxer.js', './vendor/webm-muxer.js', './vendor/gifenc.js', './vendor/mp4box/mp4box.all.mjs', './vendor/mp4box/rolldown-runtime-CNh9ExCG.mjs', './vendor/mp4box/styp-BV5G3FS-.mjs', './fonts/roboto-flex-cyrillic.woff2', './fonts/roboto-flex-latin.woff2', './icons/icon-192.png', './icons/icon-512.png'];

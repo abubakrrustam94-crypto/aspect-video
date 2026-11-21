@@ -1,4 +1,4 @@
-/* Тест v2.12.0: node tests/block9.js <папка-сайта> <папка-фикстур>
+/* Тест v2.13.0: node tests/block9.js <папка-сайта> <папка-фикстур>
    Сцены (scenes.webm), режим «Только речь» (noisy.webm, speech.webm), заметный объект (objmove.webm), замер скорости. */
 const { chromium } = require('playwright');
 const http = require('http'), fs = require('fs'), path = require('path');
@@ -12,7 +12,7 @@ const srv = http.createServer((q, r) => {
 }).listen(8789, async () => {
   const b = await chromium.launch(process.env.AV_CHROME ? { executablePath: process.env.AV_CHROME } : process.env.AV_CHANNEL ? { channel: process.env.AV_CHANNEL } : {});
   const ctx = await b.newContext({ viewport: { width: 390, height: 900 }, locale: 'ru-RU' });
-  await ctx.addInitScript(() => { try { localStorage.setItem('aspect-video-onboarded', '1'); localStorage.setItem('aspect-video-seen', '2.12.0'); } catch (e) { /* ничего */ } });
+  await ctx.addInitScript(() => { try { localStorage.setItem('aspect-video-onboarded', '1'); localStorage.setItem('aspect-video-seen', '2.13.0'); } catch (e) { /* ничего */ } });
   const pg = await ctx.newPage(); const errs = [];
   pg.on('pageerror', e => errs.push('PAGEERR ' + e.message));
   const open = async f => { await pg.reload(); await pg.waitForSelector('#uploadBtn'); await pg.setInputFiles('#fileInput', path.join(fx, f)); await pg.waitForSelector('#previewCard:not([hidden])', { timeout: 30000 }); await pg.waitForTimeout(800); };

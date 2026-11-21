@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.13.0 — Скорость кусками, проект в файл, длинные видео
+- `it.spd = [{start,end,speed}]`: `piecesIn/piecesOf/durOf/outAt/rateAt` в `js/app.js`; экспорт получает `speed` у каждого отрезка, звук и кадры считаются по нему.
+- `AV.project.toFile/parseFile` (формат `.avproj`, v2), настройки через `cleanVal`, `mGps` не сохраняется.
+- Кнопка «Разбить»: копии элемента очереди по N минут результата с учётом кусков скорости.
+
 ## 2.12.0 — Подписи, жесты и подбор настроек
 - `AV.drawCaptions`: `look` (classic/shadow/karaoke), `font`, `hi`; слова делят время подписи по длине.
 - `cropZoom` (1–3) в `drawFrame`; щипок и двойное нажатие в превью; `touch-action: pan-y` на холсте.

@@ -33,7 +33,7 @@
   }
   /* Только допустимые поля нужных типов: данные из хранилища не доверяем */
   function clean(m) {
-    if (!m || m.v !== 1 || !Array.isArray(m.items) || !m.items.length) return null;
+    if (!m || (m.v !== 1 && m.v !== 2) || !Array.isArray(m.items) || !m.items.length) return null;
     var items = [];
     for (var i = 0; i < Math.min(m.items.length, 50); i++) {
       var x = m.items[i];
@@ -42,18 +42,35 @@
       var caps = Array.isArray(x.caps) ? x.caps.filter(function (c) { return c && typeof c.text === 'string' && num(c.start) !== null && num(c.end) !== null; })
         .slice(0, 500).map(function (c) { return { text: c.text.slice(0, 200), start: c.start, end: c.end }; }) : [];
       var cuts = Array.isArray(x.cuts) ? x.cuts.filter(function (c) { return Array.isArray(c) && num(c[0]) !== null && num(c[1]) !== null && c[1] > c[0]; }).slice(0, 500).map(function (c) { return [c[0], c[1]]; }) : null;
+      var spd = Array.isArray(x.spd) ? x.spd.filter(function (r) { return r && num(r.start) !== null && num(r.end) !== null && r.end > r.start && num(r.speed) !== null && r.speed >= 0.1 && r.speed <= 8; })
+        .slice(0, 100).map(function (r) { return { start: r.start, end: r.end, speed: r.speed }; }) : [];
       var tap = x.tap && num(x.tap.x) !== null && num(x.tap.y) !== null ? { x: Math.min(1, x.tap.x), y: Math.min(1, x.tap.y) } : null;
       items.push({
-        name: x.name.slice(0, 300), size: x.size, start: num(x.start) || 0, end: num(x.end), cuts: cuts && cuts.length ? cuts : null, caps: caps, tap: tap,
+        name: x.name.slice(0, 300), size: x.size, start: num(x.start) || 0, end: num(x.end), cuts: cuts && cuts.length ? cuts : null, caps: caps, tap: tap, spd: spd,
         rot: [0, 90, 180, 270].indexOf(x.rot) >= 0 ? x.rot : 0, fh: x.fh === true, fv: x.fv === true
       });
     }
-    return items.length ? { v: 1, ts: typeof m.ts === 'number' ? m.ts : 0, items: items } : null;
+    return items.length ? { v: 2, ts: typeof m.ts === 'number' ? m.ts : 0, items: items } : null;
   }
   AV.project = {
     load: async function () { try { return clean(await tx('readonly', function (st) { return st.get('meta'); })); } catch (e) { return null; } },
     save: function (m) { var copy = JSON.parse(JSON.stringify(m)); return queue(function () { return tx('readwrite', function (st) { st.put(copy, 'meta'); }); }); },
     clear: function () { return queue(function () { return tx('readwrite', function (st) { st.clear(); }); }); },
-    clean: clean
+    clean: clean,
+    /* Файл проекта (.avproj): описание работы и настройки. Текст разбирается так же осторожно, как данные из хранилища. */
+    toFile: function (items, settings) {
+      return JSON.stringify({ app: 'aspect-studio-video', v: 2, ts: Date.now(), ver: typeof APP_VERSION === 'string' ? APP_VERSION : '', items: items, settings: settings }, null, 1);
+    },
+    parseFile: function (text) {
+      var o; try { o = JSON.parse(text); } catch (e) { return null; }
+      if (!o || o.app !== 'aspect-studio-video') return null;
+      var m = clean(o); if (!m) return null;
+      var st = {};
+      if (o.settings && typeof o.settings === 'object') Object.keys(DEF).forEach(function (k) {
+        if (k === 'mGps' || !Object.prototype.hasOwnProperty.call(o.settings, k)) return;
+        var v = cleanVal(k, o.settings[k]); if (v !== undefined) st[k] = v;
+      });
+      m.settings = st; return m;
+    }
   };
 })();

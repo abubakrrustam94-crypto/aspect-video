@@ -1,4 +1,4 @@
-/* Тест v2.12.0: node tests/block8.js <папка-сайта> <папка-фикстур> <папка-результатов>
+/* Тест v2.13.0: node tests/block8.js <папка-сайта> <папка-фикстур> <папка-результатов>
    Полоса обрезки (края, перемотка), свой лимит размера, ZIP-архив (unzip -t и сверка содержимого). */
 const { chromium } = require('playwright');
 const http = require('http'), fs = require('fs'), path = require('path'), cp = require('child_process');
@@ -13,7 +13,7 @@ const srv = http.createServer((q, r) => {
 }).listen(8788, async () => {
   const b = await chromium.launch(process.env.AV_CHROME ? { executablePath: process.env.AV_CHROME } : process.env.AV_CHANNEL ? { channel: process.env.AV_CHANNEL } : {});
   const ctx = await b.newContext({ viewport: { width: 390, height: 900 }, locale: 'ru-RU' });
-  await ctx.addInitScript(() => { try { localStorage.setItem('aspect-video-onboarded', '1'); localStorage.setItem('aspect-video-seen', '2.12.0'); } catch (e) { /* ничего */ } });
+  await ctx.addInitScript(() => { try { localStorage.setItem('aspect-video-onboarded', '1'); localStorage.setItem('aspect-video-seen', '2.13.0'); } catch (e) { /* ничего */ } });
   const pg = await ctx.newPage(); const errs = [];
   pg.on('pageerror', e => errs.push('PAGEERR ' + e.message));
   const tab = t => pg.click(`#settingsTabs [data-tab="${t}"]`);

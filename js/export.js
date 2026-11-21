@@ -186,7 +186,8 @@
   var liveSrcs = [];
   AV.exportMedia = async function (o) {
     var fmt = o.format || 'mp4', W = o.W, H = o.H, fps = o.fps, speed = o.speed || 1, warnings = [];
-    var segs = o.segs, ns = segs.map(function (g) { return Math.max(1, Math.round(((g.end - g.start) / speed) * fps)); });
+    var segs = o.segs, spd = segs.map(function (g) { return g.speed || speed; });   // у каждого куска своя скорость (по умолчанию общая)
+    var ns = segs.map(function (g, i) { return Math.max(1, Math.round(((g.end - g.start) / spd[i]) * fps)); });
     var total = ns.reduce(function (a, b) { return a + b; }, 0), outDur = total / fps;
     var canvas = document.createElement('canvas');
     canvas.width = W; canvas.height = H;
@@ -217,7 +218,7 @@
         var fsg = await frames(segs[si], vid), rg = rOf(segs[si]);
         for (var k = 0; k < ns[si]; k++) {
           if (o.signal.aborted) throw abortErr();
-          var tSrc = Math.min(segs[si].start + (k / fps) * speed, Math.max(segs[si].start, segs[si].end - 0.001));
+          var tSrc = Math.min(segs[si].start + (k / fps) * spd[si], Math.max(segs[si].start, segs[si].end - 0.001));
           AV.renderAt(ctx, W, H, await fsg.at(tSrc), rg, tSrc, idx / fps);
           var px = ctx.getImageData(0, 0, W, H).data;
           var pal = window.gifenc.quantize(px, 256, { format: 'rgb444' });
@@ -293,7 +294,8 @@
       }
       var keyEvery = Math.max(1, Math.round(fps * 2)), cs = { primaries: 'bt709', transfer: 'bt709', matrix: 'bt709', fullRange: false };
       var fi = 0, sampleOff = 0, feeder = null;
-      var ip = o.smooth && speed < 1 ? AV.makeInterp(Math.min(1920, Math.max(W, H))) : null, ipUsed = false;
+      var slowAny = spd.some(function (x) { return x < 1; });
+      var ip = o.smooth && slowAny ? AV.makeInterp(Math.min(1920, Math.max(W, H))) : null, ipUsed = false;
       /* кадр между двумя настоящими: пара кадров k/fps и (k+1)/fps, ближе к краям отдаём настоящий кадр */
       async function smoothFrame(src, ipo, t) {
         var sf = src.fps, k = Math.floor(t * sf + 1e-6), alpha = t * sf - k, ta = k / sf, tb = (k + 1) / sf;
@@ -311,13 +313,13 @@
         if (ip) ip.reset();
         if (audioOn) {
           var dr = await getAudio(g);
-          feeder = await makeSegAudio(aenc, function () { return aerr; }, dr && dr.open ? dr : null, g, ns[s2] / fps, sampleOff, o, outDur, speed, segs);
+          feeder = await makeSegAudio(aenc, function () { return aerr; }, dr && dr.open ? dr : null, g, ns[s2] / fps, sampleOff, o, outDur, spd[s2], segs);
         }
         for (var i = 0; i < ns[s2]; i++) {
           if (o.signal.aborted) throw abortErr();
           if (encErr) throw encErr;
-          var ts = Math.min(g.start + (i / fps) * speed, Math.max(g.start, g.end - 0.001));
-          var img = ip && fsv.fps >= 5 ? await smoothFrame(fsv, ip, ts) : await fsv.at(ts);
+          var ts = Math.min(g.start + (i / fps) * spd[s2], Math.max(g.start, g.end - 0.001));
+          var img = ip && spd[s2] < 1 && fsv.fps >= 5 ? await smoothFrame(fsv, ip, ts) : await fsv.at(ts);
           AV.renderAt(ctx, W, H, img, rr, ts, fi / fps + (o.tOff || 0));
           var init = { timestamp: Math.round((fi * 1e6) / fps), duration: Math.round(1e6 / fps) }, frame;
           try { frame = new VideoFrame(canvas, Object.assign({ colorSpace: cs }, init)); } catch (e0) { frame = new VideoFrame(canvas, init); }
@@ -341,7 +343,7 @@
       var blob = await out.finish(stampSecs, udta);
       ok = true;
       closeSrcs();
-      if (o.smooth && speed < 1 && !ipUsed) warnings.push('Плавное замедление не сработало: нужен MP4 или MOV, который читается быстрым способом. Видео сохранено обычным замедлением.');
+      if (o.smooth && slowAny && !ipUsed) warnings.push('Плавное замедление не сработало: нужен MP4 или MOV, который читается быстрым способом. Видео сохранено обычным замедлением.');
       return { blob: blob, ext: fmt, warnings: warnings, streamed: out.stream, opfsName: out.name, engine: Object.keys(engines).join('+') };
     } finally {
       closeSrcs();

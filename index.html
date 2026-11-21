@@ -5,7 +5,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; connect-src 'self' blob: data:; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, viewport-fit=cover">
-<meta name="av-version" content="2.12.0">
+<meta name="av-version" content="2.13.0">
 <meta name="theme-color" content="#0f0f14">
 <meta name="description" content="Меняет формат видео без обрезки: Reels, Shorts, пост 4:5, YouTube. Всё работает в браузере, видео никуда не загружается.">
 <title>Aspect Studio Video</title>
@@ -333,6 +333,29 @@
         <p class="note" id="silStatus">Ищет места, где нет звука, и убирает их. Паузы короче 0,7 с остаются.</p>
       </section>
 
+      <!-- ===== Скорость кусками ===== -->
+      <section class="card" data-tab="video" id="spdCard">
+        <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-activity"/></svg> Скорость кусками</div>
+        <p class="note" style="margin-top:0">Замедлите или ускорьте только нужный момент. Всё остальное идёт с общей скоростью из «Скорость».</p>
+        <div class="row" style="margin:0">
+          <button type="button" class="btn btn-tonal btn-sm" id="spdAdd">Добавить кусок</button>
+          <span class="note" id="spdStatus" style="margin:0">Кусок начнётся с места, где стоит бегунок.</span>
+        </div>
+        <div class="sc-list" id="spdList" role="list"></div>
+      </section>
+
+      <!-- ===== Длинное видео ===== -->
+      <section class="card" data-tab="video" id="partCard">
+        <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-box"/></svg> Длинное видео</div>
+        <p class="note" style="margin-top:0">Часовой ролик можно разрезать на части, и каждая сохранится отдельным файлом. Это легче для памяти и для отправки. Затухание в начале и конце будет у каждой части.</p>
+        <div class="row" style="margin:0">
+          <label class="field-label" for="partMin" style="margin:0">Длина части, минут</label>
+          <input class="text-input" id="partMin" type="number" inputmode="numeric" min="1" max="240" step="1" value="10" style="max-width:90px">
+          <button type="button" class="btn btn-tonal btn-sm" id="partGo">Разбить</button>
+        </div>
+        <p class="note" id="partNote" aria-live="polite"></p>
+      </section>
+
       <!-- ===== Сцены ===== -->
       <section class="card" data-tab="video" id="scCard">
         <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-video"/></svg> Сцены</div>
@@ -510,6 +533,15 @@
         </div>
         <p class="note" id="estNote"></p>
         <p class="note warn" id="memWarn" hidden></p>
+      </section>
+      <section class="card" data-tab="export" id="projCard">
+        <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-save"/></svg> Проект в файл</div>
+        <p class="note" style="margin-top:0">Сохраняет обрезку, подписи, скорость кусками, повороты и настройки в маленький файл. Сами видео в него не входят: при открытии выберите те же ролики.</p>
+        <div class="row" style="margin:0">
+          <button type="button" class="btn btn-tonal btn-sm" id="projSave">Сохранить проект</button>
+          <button type="button" class="btn btn-outlined btn-sm" id="projLoad">Открыть из файла</button>
+          <input type="file" id="projLoadFile" accept=".avproj,application/json" hidden>
+        </div>
       </section>
       <section class="card" data-tab="export" id="benchCard">
         <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-activity"/></svg> Скорость устройства</div>

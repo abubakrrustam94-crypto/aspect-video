@@ -25,7 +25,39 @@
   /* отрезки исходника, которые попадут в результат: целый фрагмент или куски между вырезанными паузами */
   function segsOf(it) { return it.cuts && it.cuts.length ? it.cuts : [[it.start, it.end]]; }
   function srcDur(it) { return segsOf(it).reduce(function (a, g) { return a + (g[1] - g[0]); }, 0); }
-  function durOf(it) { return srcDur(it) / S.speed; }
+  /* Скорость кусками: it.spd = [{ start, end, speed }] в секундах исходника. Вне кусков идёт общая скорость S.speed.
+     piecesIn режет отрезки на куски с одной скоростью; куски вне фрагмента и вырезанных пауз в результат не попадают. */
+  function rangesOf(it) { return it && it.spd && it.spd.length ? it.spd.slice().sort(function (a, b) { return a.start - b.start; }) : []; }
+  function piecesIn(it, base) {
+    var rs = rangesOf(it), out = [];
+    base.forEach(function (sg) {
+      var b = sg[1], cur = sg[0];
+      rs.forEach(function (r) {
+        if (r.end <= cur || r.start >= b) return;
+        var a2 = Math.max(cur, r.start), e2 = Math.min(b, r.end);
+        if (a2 > cur) out.push({ start: cur, end: a2, speed: S.speed });
+        out.push({ start: a2, end: e2, speed: r.speed }); cur = e2;
+      });
+      if (cur < b) out.push({ start: cur, end: b, speed: S.speed });
+    });
+    return out;
+  }
+  function piecesOf(it) { return piecesIn(it, segsOf(it)); }
+  function durOf(it) { return piecesOf(it).reduce(function (a, p) { return a + (p.end - p.start) / p.speed; }, 0); }
+  function outAt(it, t) {                                // сколько секунд результата прошло к моменту t исходника
+    var acc = 0, ps = piecesOf(it);
+    for (var i = 0; i < ps.length; i++) {
+      if (t >= ps[i].end) acc += (ps[i].end - ps[i].start) / ps[i].speed;
+      else { if (t > ps[i].start) acc += (t - ps[i].start) / ps[i].speed; break; }
+    }
+    return acc;
+  }
+  function rateAt(it, t) {
+    var ps = piecesOf(it);
+    for (var i = 0; i < ps.length; i++) if (t >= ps[i].start && t < ps[i].end) return ps[i].speed;
+    return S.speed;
+  }
+  function setRate() { var it = item(); video.playbackRate = Math.min(16, Math.max(0.0625, it ? rateAt(it, video.currentTime) : S.speed)); }
   function groupDur(items) { return items.reduce(function (a, it) { return a + durOf(it); }, 0); }
   function outFps(dur) { return S.format === 'gif' ? (dur * 15 <= 900 ? 15 : 10) : S.fps; }
   function stabOk(it) {
@@ -82,7 +114,7 @@
     $('#flipH').setAttribute('aria-pressed', fhOn); $('#flipH').classList.toggle('active', fhOn);
     $('#flipV').setAttribute('aria-pressed', fvOn); $('#flipV').classList.toggle('active', fvOn);
     $('#rotAll').hidden = Q.length < 2;
-    $('#smoothRow').hidden = S.speed >= 1;
+    var it0 = item(); $('#smoothRow').hidden = S.speed >= 1 && !rangesOf(it0).some(function (r) { return r.speed < 1; });
     $('#colorRow').hidden = S.mode !== 'color';
     $('#faceRow').hidden = S.mode !== 'crop';
     $('#tapNote').hidden = !(S.faceMode === 'tap' && S.faceTrack);
@@ -109,7 +141,7 @@
     if (k === 'faceMode' && S.faceMode === 'tap' && S.faceTrack) toast('Нажмите на нужного человека в превью.');
     if ((k === 'faceMode' || k === 'trackObj') && S.mode === 'crop' && S.faceTrack && item() && (S.trackObj || S.faceMode !== 'tap')) runFaces(item());
     syncUI();
-    if (k === 'speed' || k === '*') video.playbackRate = S.speed;
+    if (k === 'speed' || k === '*') setRate();
     if (k === 'mute' || k === '*') video.muted = S.mute;
     if (k === 'faceTrack' && S.faceTrack && S.mode === 'crop' && item() && !item().track && !item().noFace) runFaces(item());
     if (k === 'mode' && S.mode === 'crop' && S.faceTrack && item() && !item().track && !item().noFace) runFaces(item());
@@ -316,7 +348,7 @@
       var bad = function () { if (done) return; done = true; cleanup(); reject(new Error('Видео не открылось')); };
       var cleanup = function () { video.removeEventListener('loadeddata', ok); video.removeEventListener('error', bad); };
       video.addEventListener('loadeddata', ok); video.addEventListener('error', bad);
-      video.muted = S.mute; video.playbackRate = S.speed;
+      video.muted = S.mute; setRate();
       video.src = it.url; video.load();
     });
   }
@@ -329,7 +361,7 @@
     try { await loadVideo(it); } catch (e) { toast('Не удалось показать видео «' + it.name + '».', true); return; }
     syncTrim(it);
     try { video.currentTime = Math.min(it.start + 0.05, it.dur / 2); } catch (e2) { /* ничего */ }
-    syncUI(); updateInfo(); draw(); renderCaps(); updateStabStatus(); updateSilStatus(); renderScenes(); AV.renderInfo(it);
+    syncUI(); updateInfo(); draw(); renderCaps(); updateStabStatus(); updateSilStatus(); renderScenes(); renderSpd(); AV.renderInfo(it);
     makeStrip(it);
     if (S.mode === 'crop' && S.faceTrack && !it.track && !it.noFace) runFaces(it);
   }
@@ -349,7 +381,8 @@
     var t = video.currentTime;
     AV.renderAt(pctx, p.w, p.h, video, Object.assign(rparams(it), {
       outDur: durOf(it), fadeIn: S.fadeIn, fadeOut: S.fadeOut
-    }), t, Math.max(0, (t - it.start) / S.speed));
+    }), t, outAt(it, t));
+    if (!video.paused) setRate();
     if (S.mode === 'crop' && S.faceTrack && S.faceMode === 'tap' && it.tap && AV.layout) {
       var L = AV.layout, mx = L.x + it.tap.x * L.dw, my = L.y + it.tap.y * L.dh, rr = Math.max(8, p.w * 0.03);
       pctx.save(); pctx.lineWidth = Math.max(2, p.w * 0.006);
@@ -377,7 +410,7 @@
     var it = item(); if (!it || busy) return;
     if (video.paused) {
       if (video.currentTime < it.start || video.currentTime >= it.end - 0.05) video.currentTime = it.start;
-      video.playbackRate = S.speed; video.play();
+      setRate(); video.play();
     } else video.pause();
   });
   video.addEventListener('play', function () { $('#play use').setAttribute('href', '#i-pause'); $('#play').setAttribute('aria-label', 'Пауза'); });
@@ -434,6 +467,10 @@
     tl.querySelector('.tl-l').style.width = a + '%'; tl.querySelector('.tl-r').style.width = (100 - b) + '%';
     tl.querySelector('.tl-s').style.left = a + '%'; tl.querySelector('.tl-e').style.left = b + '%';
     tl.querySelector('.tl-head').style.left = t + '%';
+    tl.querySelectorAll('.tl-spd').forEach(function (n) { n.remove(); });
+    rangesOf(it).forEach(function (r) {
+      var d = el('div', 'tl-spd' + (r.speed < 1 ? ' slow' : ' fast')); d.style.left = (r.start / it.dur * 100) + '%'; d.style.width = (Math.max(0, r.end - r.start) / it.dur * 100) + '%'; tl.appendChild(d);
+    });
   }
   function tlStrip() {                                 // картинка полосы берётся из ленты кадров под превью
     var src = $('#strip'), dst = $('#tlStrip'); if (!src || !dst) return;
@@ -744,6 +781,47 @@
     b.disabled = false;
   });
 
+  /* ---------- скорость кусками ---------- */
+  var SPD_LIST = [0.25, 0.5, 0.75, 1.5, 2, 3, 4];
+  function spdChanged(it) { updateInfo(); updateEstimate(); tlPaint(it); syncUI(); draw(); setRate(); }
+  function renderSpd() {
+    var it = item(), list = $('#spdList'); if (!list) return;
+    list.replaceChildren(); if (!it) return;
+    var rs = rangesOf(it); $('#spdStatus').textContent = rs.length ? 'Кусков: ' + rs.length + '.' : 'Кусок начнётся с места, где стоит бегунок.';
+    rs.forEach(function (r) {
+      var row = el('div', 'sc-row'); row.setAttribute('role', 'listitem');
+      var lb = el('span', 'sp-lb'); lb.append(el('span', 'mono', fmtTime(r.start) + ' – ' + fmtTime(r.end)));
+      var sel = el('select', 'select'); sel.setAttribute('aria-label', 'Скорость куска');
+      SPD_LIST.forEach(function (v) { var o = el('option', '', v + '×'); o.value = v; if (v === r.speed) o.selected = true; sel.appendChild(o); });
+      sel.addEventListener('change', function () { r.speed = +sel.value; spdChanged(it); });
+      function mkBtn(text, label, fn) { var b = el('button', 'btn btn-outlined btn-sm', text); b.type = 'button'; b.setAttribute('aria-label', label); b.addEventListener('click', fn); return b; }
+      var bs = mkBtn('Начало здесь', 'Начало куска: текущее время', function () {
+        var t = Math.max(it.start, Math.min(video.currentTime, it.end));
+        if (t >= r.end - 0.1) { toast('Начало должно быть раньше конца.', true); return; }
+        if (rangesOf(it).some(function (x) { return x !== r && x.end > t && x.start < r.end && x.start < r.start; })) { toast('Куски не должны пересекаться.', true); return; }
+        r.start = t; renderSpd(); spdChanged(it);
+      });
+      var be = mkBtn('Конец здесь', 'Конец куска: текущее время', function () {
+        var t = Math.max(it.start, Math.min(video.currentTime, it.end));
+        if (t <= r.start + 0.1) { toast('Конец должен быть позже начала.', true); return; }
+        if (rangesOf(it).some(function (x) { return x !== r && x.start < t && x.end > r.start && x.start > r.start; })) { toast('Куски не должны пересекаться.', true); return; }
+        r.end = t; renderSpd(); spdChanged(it);
+      });
+      var bd = mkBtn('✕', 'Удалить кусок', function () { it.spd = it.spd.filter(function (x) { return x !== r; }); renderSpd(); spdChanged(it); });
+      row.append(lb, sel, bs, be, bd); list.appendChild(row);
+    });
+  }
+  $('#spdAdd').addEventListener('click', function () {
+    var it = item(); if (!it || busy) return;
+    var t = Math.max(it.start, Math.min(video.currentTime, it.end - 0.3)), rs = rangesOf(it);
+    if (rs.some(function (r) { return t >= r.start && t < r.end; })) { toast('В этом месте уже есть кусок. Передвиньте бегунок.', true); return; }
+    var end = Math.min(it.end, t + 2);
+    rs.forEach(function (r) { if (r.start > t && r.start < end) end = r.start; });
+    if (end - t < 0.2) { toast('Здесь не хватает места для куска.', true); return; }
+    it.spd = (it.spd || []).concat([{ start: t, end: end, speed: 0.5 }]);
+    renderSpd(); spdChanged(it); toast('Кусок добавлен: по умолчанию замедление 0,5×. Границы меняйте кнопками «Начало здесь» и «Конец здесь».');
+  });
+
   /* ---------- сцены ---------- */
   var scAbort = null;
   function renderScenes() {
@@ -958,18 +1036,18 @@
     /* clip = { start, end }: короткий предпросмотр результата. Он меньше, без звука и без затуханий, всегда MP4 (или WebM, если MP4 нет) */
     var fmt = clip ? (FS && FS.mp4 === false ? 'webm' : 'mp4') : S.format;
     var o = outSize(group[0], clip ? Math.min(S.short || 480, 480) : null, fmt);
-    var dur = clip ? (clip.end - clip.start) / S.speed : groupDur(group), fps = clip ? Math.min(S.fps, 30) : outFps(dur), segs = [];
+    var clipP = clip ? piecesIn(group[0], [[clip.start, clip.end]]) : null;
+    var dur = clip ? clipP.reduce(function (a, p) { return a + (p.end - p.start) / p.speed; }, 0) : groupDur(group), fps = clip ? Math.min(S.fps, 30) : outFps(dur), segs = [];
     group.forEach(function (g) {
       var r = rparams(g);
-      if (clip) { segs.push({ file: g.file, start: clip.start, end: clip.end, dur: g.dur, r: r, load: function () { return exportVideoFor(g); } }); return; }
-      segsOf(g).forEach(function (sg) {
-        segs.push({ file: g.file, start: sg[0], end: sg[1], dur: g.dur, r: r, load: function () { return exportVideoFor(g); } });
+      (clip ? clipP : piecesOf(g)).forEach(function (pc) {
+        segs.push({ file: g.file, start: pc.start, end: pc.end, speed: pc.speed, dur: g.dur, r: r, load: function () { return exportVideoFor(g); } });
       });
     });
     var common = {
-      format: fmt, segs: segs, W: o.w, H: o.h, fps: fps, bitrate: bitrateFor(o, fps, dur, !!clip), speed: S.speed,
+      format: fmt, segs: segs, W: o.w, H: o.h, fps: fps, bitrate: bitrateFor(o, fps, dur, !!clip), speed: segs.length === 1 ? segs[0].speed : S.speed,
       mute: clip ? true : S.mute, vol: S.vol / 100, norm: S.norm, denoise: !clip && S.denoise, dateMode: S.dateMode, metaTitle: S.mTitle, metaGps: S.mGps && group[0] && group[0].meta && group[0].meta.gps ? { lat: group[0].meta.gps.lat, lon: group[0].meta.gps.lon } : null, srcDate: group[0] && group[0].meta && group[0].meta.created ? +group[0].meta.created : 0, smooth: !clip && S.smooth, fadeIn: clip ? 0 : S.fadeIn, fadeOut: clip ? 0 : S.fadeOut,
-      tOff: clip ? (clip.start - group[0].start) / S.speed : 0,
+      tOff: clip ? outAt(group[0], clip.start) - outAt(group[0], group[0].start) : 0,
       /* для записи в реальном времени (только один цельный отрезок) */
       video: video, file: group[0].file, start: segs[0].start, end: segs[0].end, r: segs[0].r,
       fast: window.AV_NOFAST ? false : undefined, audioStream: window.AV_NOSTREAM ? false : undefined,   // только для проверок
@@ -1087,7 +1165,7 @@
   async function runClip() {
     var it = item(); if (busy || !it) return;
     var t = video.currentTime; if (t < it.start || t >= it.end - 0.25) t = it.start;
-    var end = Math.min(it.end, t + 3 * S.speed);
+    var end = Math.min(it.end, t + 3 * rateAt(it, t));
     clipOpener = document.activeElement;
     video.pause(); abort = new AbortController();
     setBusy(true); showProgress(true); setProgress('Предпросмотр', 0, 'Подготовка…'); lockOn();
@@ -1260,7 +1338,7 @@
   var projArmed = false, projLast = '', projRec = null;
   function projSnap() {
     return { v: 1, ts: Date.now(), items: Q.map(function (it) {
-      return { name: it.name, size: it.file.size, start: it.start, end: it.end, cuts: it.cuts, caps: it.caps, tap: it.tap, rot: it.rot, fh: it.fh, fv: it.fv };
+      return { name: it.name, size: it.file.size, start: it.start, end: it.end, cuts: it.cuts, caps: it.caps, tap: it.tap, rot: it.rot, fh: it.fh, fv: it.fv, spd: it.spd || [] };
     }) };
   }
   setInterval(function () {                               // раз в пару секунд сверяем и пишем только если что-то поменялось
@@ -1293,13 +1371,64 @@
       it.start = Math.max(0, Math.min(sv.start, it.dur - 0.2)); it.end = Math.max(it.start + 0.2, Math.min(sv.end == null ? it.dur : sv.end, it.dur));
       it.cuts = sv.cuts ? sv.cuts.filter(function (c) { return c[0] < it.dur; }) : null; if (it.cuts && !it.cuts.length) it.cuts = null;
       it.caps = sv.caps.filter(function (c) { return c.start < it.dur; }); it.tap = sv.tap;
-      it.rot = sv.rot; it.fh = sv.fh; it.fv = sv.fv; it.track = null; it.noFace = false; it.stab = null;
+      it.spd = (sv.spd || []).filter(function (r) { return r.start < it.dur; }); it.rot = sv.rot; it.fh = sv.fh; it.fv = sv.fv; it.track = null; it.noFace = false; it.stab = null;
     });
-    var c = item(); if (c) { syncTrim(c); video.currentTime = c.start; syncUI(); updateInfo(); updateEstimate(); renderCaps(); draw(); }
+    if (m.settings) Object.keys(m.settings).forEach(function (k) { set(k, m.settings[k]); });
+    var c = item(); if (c) { syncTrim(c); video.currentTime = c.start; syncUI(); updateInfo(); updateEstimate(); renderCaps(); renderSpd(); draw(); }
     toast(ordered.length < m.items.length ? 'Открыто видео: ' + ordered.length + ' из ' + m.items.length + '. Остальных среди выбранных не нашлось.' : 'Проект открыт.');
   });
   $('#projDrop').addEventListener('click', async function () { await AV.project.clear(); projRec = null; $('#projBar').hidden = true; toast('Проект забыт.'); });
   window.AVProjectReset = function () { return AV.project.clear(); };
+
+  /* ---------- проект в файл ---------- */
+  $('#projSave').addEventListener('click', function () {
+    if (!Q.length) { toast('Сначала добавьте видео.', true); return; }
+    var settings = {}; Object.keys(DEF).forEach(function (k) { if (k !== 'mGps') settings[k] = S[k]; });
+    var text = AV.project.toFile(projSnap().items, settings), blob = new Blob([text], { type: 'application/json' }), url = URL.createObjectURL(blob);
+    var d = new Date(), pad = function (n) { return String(n).padStart(2, '0'); };
+    download(url, 'aspect-project_' + d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + '.avproj');
+    setTimeout(function () { URL.revokeObjectURL(url); }, 60000); toast('Проект сохранён.');
+  });
+  $('#projLoad').addEventListener('click', function () { $('#projLoadFile').value = ''; $('#projLoadFile').click(); });
+  $('#projLoadFile').addEventListener('change', async function () {
+    var f = this.files && this.files[0]; if (!f || busy) return;
+    if (f.size > 5 * 1048576) { toast('Файл слишком большой для проекта.', true); return; }
+    var m = AV.project.parseFile(await f.text());
+    if (!m) { toast('Это не файл проекта Aspect Studio Video.', true); return; }
+    projRec = m;
+    $('#projText').textContent = 'Проект из файла, видео: ' + m.items.length + ' (' + m.items.slice(0, 3).map(function (x) { return x.name; }).join(', ') + (m.items.length > 3 ? '…' : '') + '). Выберите те же видео, и всё вернётся: обрезка, подписи, скорость кусками и настройки.';
+    $('#projBar').hidden = false; $('#projBar').scrollIntoView({ block: 'center' });
+  });
+
+  /* ---------- длинное видео: разбить на части ---------- */
+  $('#partGo').addEventListener('click', function () {
+    var it = item(), min = Math.round(+$('#partMin').value), note = $('#partNote'); if (!it || busy) return;
+    if (!(min >= 1 && min <= 240)) { note.textContent = 'Укажите длину части от 1 до 240 минут.'; return; }
+    var limit = min * 60, ps = piecesOf(it), parts = [], cur0 = null, acc = 0, i;
+    for (i = 0; i < ps.length; i++) {                     // идём по кускам и режем там, где набралась нужная длина результата
+      var p = ps[i], a = p.start;
+      if (cur0 === null) cur0 = a;
+      while (true) {
+        var room = (limit - acc) * p.speed, len = p.end - a;
+        if (len <= room + 1e-6) { acc += len / p.speed; break; }
+        var cut = a + room; parts.push([cur0, cut]); cur0 = cut; a = cut; acc = 0;
+        if (p.end - a < 0.05) { cur0 = null; break; }
+      }
+    }
+    if (cur0 !== null && acc > 0.05) parts.push([cur0, ps[ps.length - 1].end]);
+    if (parts.length < 2) { note.textContent = 'Результат короче ' + min + ' мин: делить нечего.'; return; }
+    if (parts.length > 40) { note.textContent = 'Получилось бы ' + parts.length + ' частей. Выберите длину побольше.'; return; }
+    var m = /^(.*?)(\.[^.]*)?$/.exec(it.name), at = cur + 1;
+    parts.forEach(function (pr, k) {
+      var cuts = it.cuts ? it.cuts.map(function (c) { return [Math.max(c[0], pr[0]), Math.min(c[1], pr[1])]; }).filter(function (c) { return c[1] - c[0] > 0.05; }) : null;
+      var c2 = Object.assign({}, it, { id: ++uid, url: URL.createObjectURL(it.file), name: m[1] + '_часть' + (k + 1) + (m[2] || ''), start: pr[0], end: pr[1], cuts: cuts && cuts.length > 1 ? cuts : null,
+        spd: (it.spd || []).filter(function (r) { return r.end > pr[0] && r.start < pr[1]; }).map(function (r) { return { start: Math.max(r.start, pr[0]), end: Math.min(r.end, pr[1]), speed: r.speed }; }), scenes: null, caps: it.caps ? it.caps.slice() : [] });
+      if (cuts && cuts.length === 1) { c2.start = cuts[0][0]; c2.end = cuts[0][1]; }
+      Q.splice(at++, 0, c2);
+    });
+    renderQueue(); updateEstimate(); note.textContent = 'В очередь добавлено частей: ' + parts.length + '. Исходное видео осталось: удалите его, если оно не нужно.';
+    toast('Добавлено частей: ' + parts.length);
+  });
 
   /* ---------- старт ---------- */
   $('#folderCard').hidden = !window.showDirectoryPicker;

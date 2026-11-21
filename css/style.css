@@ -541,3 +541,8 @@ details.wn-rel .wn-ver { background: var(--md-sys-color-surface-container-highes
 .dt-flash.l { left: 12%; } .dt-flash.r { right: 12%; }
 .dt-flash.on { opacity: 1; transform: translateY(-50%) scale(1); }
 @media (prefers-reduced-motion: no-preference) { .dt-flash { transition: opacity .18s, transform .18s; } }
+
+/* ---------- Куски скорости ---------- */
+.tl-spd { position: absolute; bottom: 0; height: 6px; pointer-events: none; opacity: .95; }
+.tl-spd.slow { background: #4fc3f7; } .tl-spd.fast { background: #ffb74d; }
+.sc-row .sp-lb { flex: 1; min-width: 0; font-size: .92rem; }
