@@ -2,7 +2,7 @@
 /* Защита от встраивания в чужую страницу (clickjacking): CSP через meta не умеет frame-ancestors, поэтому проверяем сами */
 if (window.top !== window.self) { document.documentElement.hidden = true; try { window.top.location.href = window.location.href; } catch (e) { /* браузер не разрешил, страница уже скрыта */ } }
 /* Aspect Studio Video — ядро: константы, настройки, журнал ошибок, уведомления. */
-const APP_VERSION = '2.11.0';
+const APP_VERSION = '2.12.0';
 const STORE_KEY = 'aspect-video-v1';
 const ERRLOG_KEY = 'aspect-video-errlog', ERRLOG_MAX = 30;
 const SEEN_KEY = 'aspect-video-seen', COUNT_KEY = 'aspect-video-count', THEME_KEY = 'aspect-video-theme', TAB_KEY = 'aspect-video-tab';
@@ -58,7 +58,7 @@ const DEF = {
   nameTpl: '{name}_{ratio}', translit: true, counter: false, toFolder: false,
   wmOn: false, wmType: 'text', wmText: '@mychannel', wmColor: '#ffffff', wmShadow: true,
   wmOpacity: 70, wmSize: 5, wmPos: 'br', wmMargin: 3, wmAngle: -25, wmWhen: 'all', wmSec: 5,
-  capPos: 'bot', capSize: 5, capColor: '#ffffff', capBox: true,
+  capPos: 'bot', capSize: 5, capColor: '#ffffff', capBox: true, capLook: 'classic', capFont: 'sans', capHi: '#ffd54a', cropZoom: 1,
   stab: 0, format: 'mp4', faceMode: 'largest', concat: false,
   lang: 'auto'
 };
@@ -72,7 +72,7 @@ const SPEC = (() => {
     short: E([0, 480, 720, 1080, 1440, 2160]), fps: E([24, 30, 60]), quality: E([0.07, 0.12, 0.2]), target: N(0, 5000),
     wmType: E(['text', 'image']), wmColor: H, wmOpacity: N(10, 100), wmSize: N(2, 20), wmMargin: N(0, 15), wmAngle: N(-60, 60), wmSec: N(1, 30),
     wmPos: E(['tl', 't', 'tr', 'l', 'c', 'r', 'bl', 'b', 'br', 'tile']), wmWhen: E(['all', 'first']),
-    capPos: E(['top', 'mid', 'bot']), capSize: N(2, 12), capColor: H,
+    capPos: E(['top', 'mid', 'bot']), capSize: N(2, 12), capColor: H, capHi: H, capLook: E(['classic', 'shadow', 'karaoke']), capFont: E(['sans', 'serif', 'mono']), cropZoom: N(1, 3),
     stab: E([0, 1, 2]), format: E(['mp4', 'webm', 'gif']), faceMode: E(['largest', 'left', 'right', 'center', 'tap']), lang: E(['auto', 'ru', 'en']),
     wmText: T(100), nameTpl: T(120), mTitle: T(120)
   };

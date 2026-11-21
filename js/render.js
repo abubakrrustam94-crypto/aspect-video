@@ -168,7 +168,7 @@
     if (!sw || !sh) { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H); return; }
     var k, dw, dh, x, y;
     if (mode === 'crop') {
-      k = Math.max(W / sw, H / sh);
+      k = Math.max(W / sw, H / sh) * Math.max(1, (o && o.zoom) || 1);
       dw = sw * k; dh = sh * k;
       var fx = o && o.focus ? o.focus.x : 0.5, fy = o && o.focus ? o.focus.y : 0.5;
       x = Math.min(0, Math.max(W - dw, W / 2 - fx * dw));
@@ -279,15 +279,31 @@
     });
     return out;
   }
-  /* caps: [{text,start,end}] в секундах исходника; st: { pos: 'top'|'mid'|'bot', size, color, box } */
+  /* caps: [{text,start,end}] в секундах исходника;
+     st: { pos: 'top'|'mid'|'bot', size, color, box, look: 'classic'|'shadow'|'karaoke', font: 'sans'|'serif'|'mono', hi }
+     «karaoke»: слово, которое звучит сейчас, подсвечивается. Время слов делится по длине слов внутри подписи (точных меток слов у подписей нет). */
+  var FONTS = { sans: '"Roboto Flex", system-ui, sans-serif', serif: 'Georgia, "Times New Roman", serif', mono: 'ui-monospace, "Roboto Mono", Menlo, Consolas, monospace' };
+  function wordTimes(cues, t) {                         // для каждого слова: подсвечено ли сейчас и уже ли прозвучало
+    var out = [];
+    cues.forEach(function (c) {
+      var ws = String(c.text).split(/\s+/).filter(Boolean), tot = 0, i;
+      ws.forEach(function (w) { tot += w.length + 1; });
+      var acc = 0, dur = c.end - c.start;
+      ws.forEach(function (w, k) {
+        var a = c.start + dur * acc / tot; acc += w.length + 1; var b = c.start + dur * acc / tot;
+        out.push(t >= a && t < b ? 1 : t >= b ? 2 : 0);
+      });
+    });
+    return out;
+  }
   AV.drawCaptions = function (ctx, W, H, caps, st, t) {
     if (!caps || !caps.length) return;
-    var texts = [];
-    for (var i = 0; i < caps.length; i++) if (t >= caps[i].start && t < caps[i].end && String(caps[i].text).trim()) texts.push(caps[i].text);
+    var texts = [], cues = [];
+    for (var i = 0; i < caps.length; i++) if (t >= caps[i].start && t < caps[i].end && String(caps[i].text).trim()) { texts.push(caps[i].text); cues.push(caps[i]); }
     if (!texts.length) return;
-    var short = Math.min(W, H), px = Math.max(10, short * (st.size / 100)), lh = px * 1.28;
+    var short = Math.min(W, H), px = Math.max(10, short * (st.size / 100)), lh = px * 1.28, look = st.look || 'classic';
     ctx.save();
-    ctx.font = '700 ' + px + 'px "Roboto Flex", system-ui, sans-serif';
+    ctx.font = '700 ' + px + 'px ' + (FONTS[st.font] || FONTS.sans);
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     var lines = wrapLines(ctx, texts.join('\n'), W * 0.88), bh = lines.length * lh;
     var top = st.pos === 'top' ? H * 0.08 : st.pos === 'mid' ? (H - bh) / 2 : H * 0.9 - bh;
@@ -298,11 +314,28 @@
       ctx.beginPath(); ctx.moveTo(rx + rr, ry); ctx.arcTo(rx + rw, ry, rx + rw, ry + rh, rr); ctx.arcTo(rx + rw, ry + rh, rx, ry + rh, rr);
       ctx.arcTo(rx, ry + rh, rx, ry, rr); ctx.arcTo(rx, ry, rx + rw, ry, rr); ctx.closePath(); ctx.fill();
     }
-    ctx.fillStyle = st.color; ctx.lineJoin = 'round'; ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = px * 0.14;
+    ctx.lineJoin = 'round';
+    var wt = look === 'karaoke' ? wordTimes(cues, t) : null, wi = 0, space = ctx.measureText(' ').width;
     lines.forEach(function (l, i) {
       var y = top + lh * i + lh / 2;
-      if (!st.box) ctx.strokeText(l, W / 2, y);
-      ctx.fillText(l, W / 2, y);
+      if (look === 'karaoke' && l) {
+        var ws = l.split(' '), total = ctx.measureText(l).width, x = W / 2 - total / 2;
+        ctx.textAlign = 'left';
+        ws.forEach(function (w) {
+          var state = wt[wi++] || 0, ww = ctx.measureText(w).width;
+          if (!st.box) { ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = px * 0.14; ctx.strokeText(w, x, y); }
+          ctx.fillStyle = state === 1 ? (st.hi || '#ffd54a') : st.color; ctx.globalAlpha = state === 0 ? 0.62 : 1;
+          ctx.fillText(w, x, y); ctx.globalAlpha = 1; x += ww + space;
+        });
+        ctx.textAlign = 'center';
+      } else if (look === 'shadow') {
+        ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = px * 0.28; ctx.shadowOffsetY = px * 0.06;
+        ctx.fillStyle = st.color; ctx.fillText(l, W / 2, y); ctx.fillText(l, W / 2, y); ctx.restore();
+      } else {
+        ctx.fillStyle = st.color; ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = px * 0.14;
+        if (!st.box) ctx.strokeText(l, W / 2, y);
+        ctx.fillText(l, W / 2, y);
+      }
     });
     ctx.restore();
   };
@@ -314,7 +347,7 @@
     var o = AV.getOriented(video, r.rot, r.fh, r.fv);
     if (r.stab && r.stab.track && r.stab.track.length) o = applyStab(o, AV.stabAt(r.stab, tSrc), r.stab.zoom);
     AV.drawFrame(ctx, W, H, o.src, o.sw, o.sh, {
-      mode: r.mode, color: r.color, focus: r.focusAt ? r.focusAt(tSrc) : null
+      mode: r.mode, color: r.color, zoom: r.zoom, focus: r.focusAt ? r.focusAt(tSrc) : null
     });
     if (r.caps && r.caps.length) AV.drawCaptions(ctx, W, H, r.caps, r.capStyle, tSrc);
     AV.drawWatermark(ctx, W, H, r.wm, r.wmImg, tOut);

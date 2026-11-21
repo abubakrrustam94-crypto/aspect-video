@@ -37,7 +37,8 @@
       focusAt: S.mode === 'crop' && S.faceTrack && it.track ? function (t) { return AV.focusAt(it.track, t); } : null,
       stab: S.stab && stabOk(it) ? it.stab : null,
       caps: it.caps && it.caps.length ? it.caps : null,
-      capStyle: { pos: S.capPos, size: S.capSize, color: S.capColor, box: S.capBox },
+      capStyle: { pos: S.capPos, size: S.capSize, color: S.capColor, box: S.capBox, look: S.capLook, font: S.capFont, hi: S.capHi },
+      zoom: S.mode === 'crop' ? S.cropZoom : 1,
       wm: wmObj(), wmImg: wmImg
     };
   }
@@ -660,6 +661,43 @@
   $('#stabRun').addEventListener('click', function () { var it = item(); if (it) { it.stab = null; runStab(it); } });
   onSet(function (k) { if (k === 'stab' || k === '*') updateStabStatus(); });
 
+  /* ---------- жесты в превью: двойное нажатие = перемотка на 5 с, два пальца = приближение (в режиме «Обрезать») ---------- */
+  (function () {
+    var pts = {}, lastTap = 0, lastX = 0, pinch0 = 0, zoom0 = 1, flashT = 0, fl = $('#dtFlash');
+    function flash(side, text) {
+      fl.className = 'dt-flash ' + side; fl.textContent = text; void fl.offsetWidth; fl.classList.add('on');
+      clearTimeout(flashT); flashT = setTimeout(function () { fl.classList.remove('on'); }, 600);
+    }
+    function tapMode() { return S.mode === 'crop' && S.faceTrack && S.faceMode === 'tap'; }
+    pv.addEventListener('pointerdown', function (e) {
+      pts[e.pointerId] = { x: e.clientX, y: e.clientY };
+      var ids = Object.keys(pts);
+      if (ids.length === 2 && S.mode === 'crop' && !busy) { var a = pts[ids[0]], b = pts[ids[1]]; pinch0 = Math.hypot(a.x - b.x, a.y - b.y) || 1; zoom0 = S.cropZoom; }
+    });
+    pv.addEventListener('pointermove', function (e) {
+      if (!pts[e.pointerId]) return; pts[e.pointerId] = { x: e.clientX, y: e.clientY };
+      var ids = Object.keys(pts);
+      if (ids.length === 2 && pinch0 && S.mode === 'crop' && !busy) {
+        var a = pts[ids[0]], b = pts[ids[1]], z = zoom0 * Math.hypot(a.x - b.x, a.y - b.y) / pinch0;
+        z = Math.round(Math.min(3, Math.max(1, z)) * 20) / 20;
+        if (z !== S.cropZoom) set('cropZoom', z);
+      }
+    });
+    function up(e) {
+      var was = Object.keys(pts).length; delete pts[e.pointerId];
+      if (was >= 2) { pinch0 = 0; lastTap = 0; return; }
+      if (e.type === 'pointercancel' || busy || tapMode()) return;
+      var it = item(); if (!it) return;
+      var now = performance.now(), r = pv.getBoundingClientRect();
+      if (now - lastTap < 320 && Math.abs(e.clientX - lastX) < 40) {
+        var right = e.clientX - r.left > r.width / 2, d = right ? 5 : -5;
+        video.currentTime = Math.min(it.end, Math.max(it.start, video.currentTime + d));
+        draw(); flash(right ? 'r' : 'l', (right ? '+5' : '−5') + ' с'); lastTap = 0;
+      } else { lastTap = now; lastX = e.clientX; }
+    }
+    pv.addEventListener('pointerup', up); pv.addEventListener('pointercancel', up);
+  })();
+
   /* ---------- скорость устройства ---------- */
   function benchHint() {
     var h = $('#benchHint'), st = $('#benchStatus'), b = AV.benchLoad(); if (!h) return;
@@ -672,7 +710,32 @@
     if (e.seconds > Math.max(120, dur * 3)) tips.push('Чтобы быстрее: выберите 720p или 30 кадров/с');
     if (b.fps < 25 && (S.denoise || S.smooth)) tips.push('шумоподавление и плавное замедление на этом устройстве заметно добавят времени');
     h.textContent = msg + (tips.length ? ' ' + tips.join('; ') + '.' : '');
+    benchAdvice(b, it, grp, dur);
   }
+  /* Подбор: самое крупное разрешение и частота, при которых сохранение уложится в запас по времени. Выше текущих настроек не поднимаем. */
+  var benchRec = null;
+  function benchAdvice(b, it, grp, dur) {
+    var btn = $('#benchApply'), note = $('#benchRec'); benchRec = null;
+    if (S.format === 'gif') { btn.hidden = true; note.textContent = ''; return; }
+    var budget = Math.max(90, dur * 2), shorts = [2160, 1440, 1080, 720, 480], fpss = [60, 30, 24], best = null, src = Math.min(it.vw, it.vh), cap = S.short || src;
+    shorts.forEach(function (sh) {
+      if (sh > cap) return;
+      fpss.forEach(function (f) {
+        if (f > S.fps) return;
+        var sz = outSize(it, sh), e = AV.benchEstimate(b, sz.w, sz.h, f, dur);
+        if (e.seconds <= budget && (!best || sh * f > best.sh * best.f)) best = { sh: sh, f: f, sec: e.seconds };
+      });
+    });
+    if (!best) best = { sh: 480, f: 24, sec: 0 };
+    var curOk = AV.benchEstimate(b, outSize(it).w, outSize(it).h, S.fps, dur).seconds <= budget;
+    if (curOk) { btn.hidden = true; note.textContent = 'Текущие настройки подходят для этого устройства.'; return; }
+    benchRec = best; btn.hidden = false; btn.textContent = 'Применить: ' + best.sh + 'p, ' + best.f + ' кадров/с';
+    note.textContent = 'Рекомендуем ' + best.sh + 'p, ' + best.f + ' кадров/с, чтобы сохранение заняло не дольше ' + fmtTime(budget) + '.';
+  }
+  $('#benchApply').addEventListener('click', function () {
+    if (!benchRec || busy) return;
+    set('short', benchRec.sh); set('fps', benchRec.f); toast('Настройки применены');
+  });
   $('#benchRun').addEventListener('click', async function () {
     var b = this, st = $('#benchStatus'); if (b.disabled || busy) return;
     b.disabled = true; st.textContent = 'Проверяю…';

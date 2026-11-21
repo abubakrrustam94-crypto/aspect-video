@@ -18,7 +18,7 @@ const srv = http.createServer((q, r) => {
     await p0.goto('http://localhost:8766/index.html');
     await p0.waitForSelector('#onboard:not([hidden])', { timeout: 4000 }).catch(() => {});
     ok(await p0.locator('#onboard').isVisible(), 'обучение показывается новичку');
-    await p0.click('#onbNext'); await p0.click('#onbNext');
+    for (let i = 0; i < 6; i++) await p0.click('#onbNext');
     ok((await p0.textContent('#onbNext')) === 'Понятно', 'последний шаг обучения');
     await p0.click('#onbNext');
     ok(await p0.locator('#onboard').isHidden() && (await p0.evaluate(() => localStorage.getItem('aspect-video-onboarded'))) === '1', 'обучение закрывается и запоминается');
@@ -187,7 +187,7 @@ const srv = http.createServer((q, r) => {
 
     /* О программе */
     await pg.click('#settingsTabs [data-tab="about"]');
-    ok((await pg.textContent('#appVersion')) === "v2.11.0", 'версия показана');
+    ok((await pg.textContent('#appVersion')) === "v2.12.0", 'версия показана');
     await pg.click('#wnOpenBtn');
     await pg.waitForSelector('#wnList .wn-rel', { timeout: 5000 });
     ok((await pg.locator('#wnList .wn-rel').count()) >= 2, 'что нового: записей ' + (await pg.locator('#wnList .wn-rel').count()));

@@ -5,7 +5,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; connect-src 'self' blob: data:; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, viewport-fit=cover">
-<meta name="av-version" content="2.11.0">
+<meta name="av-version" content="2.12.0">
 <meta name="theme-color" content="#0f0f14">
 <meta name="description" content="Меняет формат видео без обрезки: Reels, Shorts, пост 4:5, YouTube. Всё работает в браузере, видео никуда не загружается.">
 <title>Aspect Studio Video</title>
@@ -117,7 +117,7 @@
           </div>
           <span class="count-pill" id="info"></span>
         </div>
-        <div class="stage"><canvas id="preview" aria-label="Предпросмотр результата. В режиме «По нажатию» нажмите на человека, за которым следить"></canvas></div>
+        <div class="stage"><div class="dt-flash" id="dtFlash" aria-hidden="true"></div><canvas id="preview" aria-label="Предпросмотр результата. В режиме «По нажатию» нажмите на человека, за которым следить"></canvas></div>
         <video id="video" class="vhide" playsinline preload="auto"></video>
         <div class="transport">
           <button type="button" class="icon-btn play" id="play" aria-label="Играть"><svg class="ic" aria-hidden="true"><use href="#i-play"/></svg></button>
@@ -202,6 +202,9 @@
           <input type="color" data-key="color" aria-label="Цвет поля">
         </div>
         <div class="panel" id="faceRow" hidden>
+          <span class="field-label">Приближение <output data-out="cropZoom" data-unit="×"></output></span>
+          <div class="range-row"><input type="range" data-key="cropZoom" min="1" max="3" step="0.05" aria-label="Приближение кадра"></div>
+          <p class="note">Двумя пальцами на превью можно приблизить или отдалить кадр.</p>
           <label class="switch"><input type="checkbox" data-key="faceTrack"><span class="track"></span><span>Следить за лицом</span></label>
           <div class="row" style="margin-top:10px">
             <button type="button" class="btn btn-tonal btn-sm" id="faceRun"><svg class="ic" aria-hidden="true"><use href="#i-user"/></svg> Найти лицо</button>
@@ -430,6 +433,26 @@
             <span class="field-label">Размер</span>
             <div class="range-row"><input type="range" data-key="capSize" min="2" max="12" step="0.5" aria-label="Размер подписей"><output data-out="capSize" data-unit="%"></output></div>
           </div>
+          <div>
+            <span class="field-label">Вид подписей</span>
+            <div class="seg" data-group="capLook" role="group" aria-label="Вид подписей">
+              <button type="button" data-val="classic">Обычный</button>
+              <button type="button" data-val="shadow">С тенью</button>
+              <button type="button" data-val="karaoke">Слова по очереди</button>
+            </div>
+          </div>
+          <div>
+            <span class="field-label">Шрифт</span>
+            <div class="seg" data-group="capFont" role="group" aria-label="Шрифт подписей">
+              <button type="button" data-val="sans">Простой</button>
+              <button type="button" data-val="serif">С засечками</button>
+              <button type="button" data-val="mono">Печатный</button>
+            </div>
+          </div>
+          <div class="row" style="margin:0">
+            <span class="field-label" style="margin:0">Цвет слова</span>
+            <input type="color" data-key="capHi" aria-label="Цвет подсвеченного слова">
+          </div>
           <div class="row" style="margin:0">
             <span class="field-label" style="margin:0">Цвет текста</span>
             <input type="color" data-key="capColor" aria-label="Цвет подписей">
@@ -495,6 +518,8 @@
           <span class="note" id="benchStatus" style="margin:0">Занимает несколько секунд.</span>
         </div>
         <p class="note" id="benchHint" aria-live="polite"></p>
+        <p class="note" id="benchRec" aria-live="polite"></p>
+        <button type="button" class="btn btn-main btn-sm" id="benchApply" hidden>Применить</button>
       </section>
       <section class="card" data-tab="export">
         <div class="card-title"><svg class="ic" aria-hidden="true"><use href="#i-copy"/></svg> Имя файла</div>
